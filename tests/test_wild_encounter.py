@@ -4,7 +4,7 @@
 
 - 遇敌表配置正确（权重和 100、等级区间逐条相等、新手村无怪）；
 - 刷怪上限、落点合法（可走 / 不重叠 / 不在玩家格）；
-- 游走间隔 40~70 帧、游走不穿障碍；
+- 游走间隔 80~140 帧、游走不穿障碍；
 - 碰撞遇敌、战斗后移除 + 冷却、冷却重生、逃跑弹开；
 - 野外状态跨场景保持（战斗 -> FieldScene 重建后冷却仍生效）；
 - 标题画面的「测试战斗」调试入口已删除。
@@ -99,12 +99,12 @@ class EncounterTableTest(unittest.TestCase):
         self.assertEqual(map_data.spawn_points_of(VILLAGE_MAP), [])
 
     def test_encounter_parameters_match_document(self):
-        """§10.3：上限 4、重生冷却 180 帧、游走间隔 40~70。"""
+        """§10.3：上限 4、重生冷却 360 帧（6 秒）、游走间隔 80~140 帧。"""
         enc = map_data.encounters_of(FIELD_MAP)
         self.assertEqual(enc["max_alive"], 4)
-        self.assertEqual(enc["respawn_frames"], 180)
-        self.assertEqual(enc["move_min"], 40)
-        self.assertEqual(enc["move_max"], 70)
+        self.assertEqual(enc["respawn_frames"], 360)
+        self.assertEqual(enc["move_min"], 80)
+        self.assertEqual(enc["move_max"], 140)
 
     def test_spawn_points_are_grass_and_distinct(self):
         """刷怪点必须落在草丛（图块 1）上、互不重叠、至少 6 个。"""
@@ -180,18 +180,23 @@ class SpawnTest(unittest.TestCase):
 
 
 class WanderTest(unittest.TestCase):
-    """游走（§10.3「游走间隔 40~70 帧」「不穿障碍」）。"""
+    """游走（§10.3「游走间隔 80~140 帧」「不穿障碍」）。"""
 
-    def test_move_interval_within_40_to_70(self):
-        """注入固定随机种子，游走间隔落在 40~70 帧。
+    def test_move_interval_within_80_to_140(self):
+        """注入固定随机种子，游走间隔落在 80~140 帧。
 
-        测的是**游走计时器**的间隔（§10.3「游走间隔 40~70 帧」）：
-        每只精灵的 move_timer 归零时尝试走一格，随后重新计 40~70 帧。
-        注意位置变化的间隔可能 > 70——被围住时精灵原地不动并重新计时
+        测的是**游走计时器**的间隔（§10.3「游走间隔 80~140 帧」）：
+        每只精灵的 move_timer 归零时尝试走一格，随后重新计 80~140 帧。
+        注意位置变化的间隔可能 > 140——被围住时精灵原地不动并重新计时
         （§10.3「无路可走则原地停留」）。
+
+        **测量基准**：精灵在 make_field() 的 enter() 里就已经刷出来，
+        初始计时器 = randint(move_min, move_max)，所以「第一段间隔」
+        必须从精灵出生那一刻算起。这里在跑第一帧之前就记下计时器初值
+        （循环第 frame 帧 == 游戏第 frame-1 帧），量出来的每一段间隔
+        都正好等于一次游走间隔。
         """
         game, scene = make_field(map_id=FIELD_MAP, seed=2024, x=2, y=15)
-        run(game, 3)
         wanderers = wanderers_of(scene)
         self.assertTrue(wanderers)
 
@@ -200,7 +205,7 @@ class WanderTest(unittest.TestCase):
         last_attempt = {id(w): 0 for w in wanderers}
         intervals = []
         moves = 0
-        for frame in range(1, 1200):
+        for frame in range(1, 2400):
             run(game, 1)
             for w in wanderers_of(scene):
                 timer = int(w["move_timer"])
@@ -213,8 +218,8 @@ class WanderTest(unittest.TestCase):
 
         self.assertTrue(intervals, "精灵应该会游走")
         for gap in intervals:
-            self.assertGreaterEqual(gap, 40, f"游走间隔 {gap} < 40")
-            self.assertLessEqual(gap, 70, f"游走间隔 {gap} > 70")
+            self.assertGreaterEqual(gap, 80, f"游走间隔 {gap} < 80")
+            self.assertLessEqual(gap, 140, f"游走间隔 {gap} > 140")
 
     def test_wanderers_actually_change_position(self):
         """精灵确实会走（不只是原地转圈）。"""
@@ -223,7 +228,7 @@ class WanderTest(unittest.TestCase):
         wanderers = wanderers_of(scene)
         start = {id(w): (w["gx"], w["gy"]) for w in wanderers}
         moved = 0
-        for _ in range(600):
+        for _ in range(1200):
             run(game, 1)
         for w in wanderers_of(scene):
             if (w["gx"], w["gy"]) != start[id(w)]:
@@ -238,7 +243,7 @@ class WanderTest(unittest.TestCase):
         self.assertTrue(wanderers)
 
         # 长时间运行，断言精灵始终待在可走格上
-        for _ in range(600):
+        for _ in range(1200):
             run(game, 1)
             for w in wanderers_of(scene):
                 self.assertTrue(map_data.is_walkable(FIELD_MAP, w["gx"], w["gy"]),
@@ -266,7 +271,7 @@ class WanderTest(unittest.TestCase):
         original = map_data.is_walkable
         map_data.is_walkable = fake_walkable
         try:
-            run(game, 200)
+            run(game, 400)
         finally:
             map_data.is_walkable = original
 
@@ -278,7 +283,7 @@ class WanderTest(unittest.TestCase):
         """游走时精灵之间不会重叠。"""
         game, scene = make_field(map_id=FIELD_MAP, seed=4242, x=2, y=15)
         run(game, 3)
-        for _ in range(600):
+        for _ in range(1200):
             run(game, 1)
             cells = [(w["gx"], w["gy"]) for w in wanderers_of(scene)]
             self.assertEqual(len(set(cells)), len(cells), "精灵重叠了")
@@ -378,7 +383,7 @@ class BattleEndTest(unittest.TestCase):
         self.assertEqual(remaining, [], "打赢后该精灵应从地图移除")
         self.assertFalse(target["alive"])
         self.assertIn(target["spawn_index"], state["cooldown"])
-        self.assertEqual(state["cooldown"][target["spawn_index"]], 180)
+        self.assertEqual(state["cooldown"][target["spawn_index"]], 360)
 
     def test_run_pushes_player_back_one_tile(self):
         """on_end("run") -> 玩家向后弹开 1 格，且不与精灵重合。"""
@@ -397,7 +402,8 @@ class BattleEndTest(unittest.TestCase):
 
         # 回到地图场景（冷却只在地图场景里走）
         scene = self._rebuild_field(game)
-        run(game, 200)
+        # 冷却 360 帧（@60fps = 6 秒），跑 400 帧确保冷却走完
+        run(game, 400)
 
         state = game.wild_state[FIELD_MAP]
         self.assertNotIn(target["spawn_index"], state["cooldown"],

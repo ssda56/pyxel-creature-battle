@@ -9,7 +9,7 @@
     fade = Fade()
 
     # 渐黑，结束时执行 on_done
-    fade.start_out(15, on_done=lambda: switch_scene())
+    fade.start_out(30, on_done=lambda: switch_scene())
 
     # 每帧
     fade.update()      # 推进一帧，结束时触发 on_done
@@ -23,7 +23,7 @@ Pyxel 2.9.9 没有 alpha 混合，pyxel.dither 的签名也不可用，所以这
 - 黑度分 16 档（0 = 全亮，16 = 全黑），每帧黑度按 1/16 递增/递减，
   **肉眼能看到连续渐变**（不是一步黑到底）；
 - 每一档要描黑的像素位置都预先算好（_BLACK_X），绘制时只对黑像素
-  调用 pyxel.pset，帧开销足够小（30fps 下 < 20ms）。
+  调用 pyxel.pset，帧开销足够小（60fps 下 < 20ms）。
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ class Fade:
         self.on_done = None
 
     # ------------------------------------------------------------ 控制
-    def start_out(self, frames: int = 15, on_done=None) -> None:
+    def start_out(self, frames: int = 30, on_done=None) -> None:
         """开始渐黑（画面变暗）。on_done 在变全黑时调用。"""
         self.active = True
         self.mode = "out"
@@ -100,7 +100,7 @@ class Fade:
         self.level = 0
         self.on_done = on_done
 
-    def start_in(self, frames: int = 15, on_done=None) -> None:
+    def start_in(self, frames: int = 30, on_done=None) -> None:
         """开始渐亮（从全黑恢复）。on_done 在完全亮起时调用。"""
         self.active = True
         self.mode = "in"

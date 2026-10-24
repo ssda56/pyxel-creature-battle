@@ -4,7 +4,7 @@
 
 1. 面对护士读完对话 -> 播放治疗演出；
 2. 演出期间玩家不能移动（状态位挡住输入）；
-3. 演出结束（≤ 80 帧）后全队 HP / MP 全满、没有倒下的精灵、金币不变；
+3. 演出结束（≤ 160 帧）后全队 HP / MP 全满、没有倒下的精灵、金币不变；
 4. 治疗**免费**：背包一个道具都不消耗。
 """
 
@@ -80,15 +80,16 @@ class HealPointTest(unittest.TestCase):
             self.assertEqual((scene.gx, scene.gy), NURSE_FRONT)
             self.assertFalse(scene.moving)
 
-        # 跑完演出（≤ 80 帧）
+        # 跑完演出（≤ 160 帧）
         frames = 20
-        while scene.heal_timer > 0 and frames < 80:
+        while scene.heal_timer > 0 and frames < 160:
             idle(game, 1)
             frames += 1
-        self.assertLessEqual(frames, 80)
+        self.assertLessEqual(frames, 160)
         self.assertEqual(scene.heal_timer, 0)
-        self.assertGreaterEqual(HEAL_FRAMES, 40)
-        self.assertLessEqual(HEAL_FRAMES, 60)
+        # 演出时长要求 40~60 帧 @30fps -> 80~120 帧 @60fps（时长不变）
+        self.assertGreaterEqual(HEAL_FRAMES, 80)
+        self.assertLessEqual(HEAL_FRAMES, 120)
 
         # 演出结束后弹出结果对话
         self.assertIsNotNone(scene.dialogue)

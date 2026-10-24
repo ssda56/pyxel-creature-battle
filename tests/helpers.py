@@ -16,7 +16,7 @@ if PROJECT_ROOT not in sys.path:
 #: 与游戏一致的画面尺寸 / 帧率
 SCREEN_WIDTH = 240
 SCREEN_HEIGHT = 216
-FPS = 30
+FPS = 60
 
 _initialized = False
 

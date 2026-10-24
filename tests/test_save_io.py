@@ -206,13 +206,14 @@ class SaveIoTest(unittest.TestCase):
         # 删不存在的文件也不报错
         save_io.delete_save(self.path)
 
-    def test_play_seconds_is_frames_over_30(self):
+    def test_play_seconds_is_frames_over_60(self):
         game = self._game()
         game.play_frames = 95
         save_io.save_game(game, self.path)
         with open(self.path, encoding="utf-8") as fh:
             data = json.load(fh)
-        self.assertEqual(data["play_seconds"], 3)
+        # 95 帧 / 60fps = 1 秒（30fps 时 95 帧 / 30 = 3 秒，帧率翻倍后时长不变）
+        self.assertEqual(data["play_seconds"], 1)
 
     # ------------------------------------------------------------ 存档结构
     def test_saved_json_matches_doc_section_11(self):

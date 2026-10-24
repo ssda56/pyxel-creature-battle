@@ -52,7 +52,7 @@ class Game:
         #: 任何场景都必须容忍 player 为 None（见 menu_scene 的 _player()）。
         self.player: Player | None = None
 
-        #: 游戏内计时（帧）。存档里的 play_seconds = play_frames // 30。
+        #: 游戏内计时（帧）。存档里的 play_seconds = play_frames // 60。
         self.play_frames: int = 0
 
         self.scenes.push(TitleScene(self))

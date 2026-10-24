@@ -60,7 +60,7 @@ class BattleShotTest(unittest.TestCase):
         bh.press(game, "confirm")      # 使用
         bh.press(game, "confirm")      # 伤害结算（飘字出现）
         self.assertEqual(scene.numbers.count, 1)
-        bh.idle(game, 5)               # 让飘字往上飘一点
+        bh.idle(game, 10)              # 让飘字往上飘一点（10 帧 @60fps = 原来的 5 帧 @30fps）
         self._shot(game, DAMAGE_SHOT, scale=2)
         self.assertEqual(helpers.png_size(DAMAGE_SHOT), (480, 432))
 

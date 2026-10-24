@@ -66,8 +66,8 @@ MAIN_X, MAIN_Y, MAIN_STEP = 30, 54, 24
 #: 底部提示条
 MSG_Y = 190
 
-#: 提示信息持续的帧数
-MESSAGE_FRAMES = 120
+#: 提示信息持续的帧数（240 帧 @60fps = 4 秒，与 120 帧 @30fps 一致）
+MESSAGE_FRAMES = 240
 
 
 def _fit(s: str, max_px: int) -> str:

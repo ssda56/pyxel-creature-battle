@@ -31,7 +31,7 @@ class FieldShotTest(unittest.TestCase):
         """走路中截图：能看到走路动画帧。"""
         game, scene = field_helpers.make_field(
             map_id=1, script=[{"up": 60}], x=15, y=10)
-        helpers.run_frames(game.update, game.draw, 18,
+        helpers.run_frames(game.update, game.draw, 36,
                            shot_path=MOVING_SHOT, scale=2)
         self.assertTrue(os.path.exists(MOVING_SHOT), "移动截图没有生成")
         self.assertGreater(os.path.getsize(MOVING_SHOT), 1000)

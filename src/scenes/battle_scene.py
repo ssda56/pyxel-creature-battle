@@ -66,8 +66,8 @@ RUN_SPD_COEF = 0.02
 RUN_MIN = 0.20
 RUN_MAX = 0.95
 
-#: §5.6 战败淡出帧数
-DEFEAT_FADE_FRAMES = 30
+#: §5.6 战败淡出帧数（60 帧 @60fps = 1 秒，与 30 帧 @30fps 一致）
+DEFEAT_FADE_FRAMES = 60
 
 #: 精灵球道具 ID（§7.1）
 BALL_ITEM_ID = 1

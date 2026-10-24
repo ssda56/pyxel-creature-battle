@@ -2,8 +2,8 @@
 
 本批实现
 --------
-- 四向网格移动：按住方向键连续走格，每格 **10 帧**插值（像素级平滑）；
-- 走路动画：移动中每 10 帧切一帧（player_{方向}_{0|1}），静止用帧 0；
+- 四向网格移动：按住方向键连续走格，每格 **20 帧**插值（像素级平滑）；
+- 走路动画：移动中每 20 帧切一帧（player_{方向}_{0|1}），静止用帧 0；
 - 碰撞：目标格在 BLOCKED_TILES 或越界则不动（但朝向仍然改变）；
 - 摄像机：玩家居中并夹在地图边界内，地图比视口小则整体居中；
 - HUD：左上角「金币 N」（色 10 黄）+ 右上角地图名；
@@ -25,7 +25,7 @@
 - game.wild_state[map_id] = {"wanderers": [...], "cooldown": {spawn_index: 帧数}}；
 - game.wild_rng：随机源（测试可注入 random.Random(seed)）；
 - 刷怪：进入地图按 max_alive 从刷怪点随机取点生成（种族/等级按遇敌表抽）；
-- 游走：每 40~70 帧向 4 方向随机走 1 格（不可走 / 有精灵 / 玩家所在格则不动）；
+- 游走：每 80~140 帧向 4 方向随机走 1 格（不可走 / 有精灵 / 玩家所在格则不动）；
 - 碰撞：玩家与精灵同格 -> 立刻进入战斗（BattleScene），战斗结束移除该精灵并冷却。
 
 对外接口（后续批次照着用）
@@ -56,11 +56,12 @@ from src.ui.transition import Fade
 SCREEN_W = 240
 SCREEN_H = 216
 
-#: 走一格需要的帧数（规划文档 §3.8 要求 8~12 帧，这里取 10）
-STEP_FRAMES = 10
+#: 走一格需要的帧数（规划文档 §3.8 要求 8~12 帧 @30fps，这里取 20 帧 @60fps）
+#: 20 帧 / 60fps = 333ms，与原来的 10 帧 / 30fps 完全一致（帧率翻倍，时长不变）
+STEP_FRAMES = 20
 
-#: 转场淡入淡出帧数
-FADE_FRAMES = 15
+#: 转场淡入淡出帧数（30 帧 / 60fps = 500ms，与 15 帧 / 30fps 一致）
+FADE_FRAMES = 30
 
 #: 方向 -> (dx, dy)
 DIRECTIONS: dict[str, tuple[int, int]] = {
@@ -119,12 +120,15 @@ BOX_PAD = 6
 
 
 # ------------------------------------------------------------ 治疗点（批 3 / T6）
-#: 治疗演出的总帧数（任务要求 40~60 帧；这里取 50 帧 = 30fps 下约 1.7 秒）
-HEAL_FRAMES = 50
+#: 治疗演出的总帧数（任务要求 40~60 帧 @30fps；这里取 100 帧 @60fps = 1.67 秒）
+#: 100 帧 / 60fps 与原来的 50 帧 / 30fps 时长完全一致
+HEAL_FRAMES = 100
 #: 闪光的半周期：每 HEAL_FLASH_STEP 帧在「亮 / 暗」之间切一次
-HEAL_FLASH_STEP = 6
+#: 12 帧 / 60fps = 200ms，与原来的 6 帧 / 30fps 一致
+HEAL_FLASH_STEP = 12
 #: 演出最后几帧整屏纯白（最亮的一下）
-HEAL_SOLID_FRAMES = 2
+#: 4 帧 / 60fps = 66.7ms，与原来的 2 帧 / 30fps 一致
+HEAL_SOLID_FRAMES = 4
 #: 闪光棋盘格的边长（像素）；4 = 4x4 的方块棋盘
 HEAL_DITHER = 4
 #: 治疗演出结束后的台词
@@ -384,7 +388,7 @@ class FieldScene(Scene):
         self._apply_interpolation()
 
     def _advance_move(self) -> None:
-        """推进当前这一步的插值；走满 10 帧就落格。"""
+        """推进当前这一步的插值；走满 STEP_FRAMES（20）帧就落格。"""
         self.move_timer += 1
         if self.move_timer >= STEP_FRAMES:
             self.move_timer = STEP_FRAMES
@@ -559,7 +563,7 @@ class FieldScene(Scene):
 
         - 同屏存活上限 = encounters["max_alive"]；
         - 处于重生冷却的刷怪点**也算占位**（冷却没走完不许在那里再刷），
-          这样「打掉一只 -> 冷却 180 帧 -> 从刷怪点重生」才成立；
+          这样「打掉一只 -> 冷却 360 帧 -> 从刷怪点重生」才成立；
         - 精灵不能刷在玩家所在格，也不能和别的精灵重叠。
         """
         enc = self._encounters
@@ -622,7 +626,7 @@ class FieldScene(Scene):
         return wanderer
 
     def _tick_cooldowns(self) -> None:
-        """所有地图的重生冷却每帧递减（§10.3：重生冷却 180 帧 = 6 秒）。
+        """所有地图的重生冷却每帧递减（§10.3：重生冷却 360 帧 @60fps = 6 秒）。
 
         冷却归零时**立刻**在原刷怪点把精灵刷回来
         （§10.3「战斗结束后该实体从地图移除，冷却后从刷怪点重生」）。
@@ -824,10 +828,10 @@ class FieldScene(Scene):
     def _draw_heal_fx(self) -> None:
         """治疗演出的闪光效果（整屏棋盘格白闪 + 顶部提示条）。
 
-        闪光节奏（HEAL_FRAMES = 50 帧）：
+        闪光节奏（HEAL_FRAMES = 100 帧 @60fps）：
 
-        - 每 HEAL_FLASH_STEP（6）帧在「亮 / 暗」之间切一次 -> 一共 4 次棋盘闪光；
-        - 最后 HEAL_SOLID_FRAMES（2）帧整屏纯白（最亮的一下）。
+        - 每 HEAL_FLASH_STEP（12）帧在「亮 / 暗」之间切一次 -> 一共 4 次棋盘闪光；
+        - 最后 HEAL_SOLID_FRAMES（4）帧整屏纯白（最亮的一下）。
 
         棋盘格用 4x4 的白色方块交错铺满整屏，场景仍然看得见，
         但一眼就能看出「在闪」。

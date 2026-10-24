@@ -54,8 +54,8 @@ SAVE_PATH = os.path.join(SAVE_DIR, "save1.json")
 #: 存档格式版本（《数值设定.md》§11 的 save_version）
 SAVE_VERSION = 1
 
-#: 游戏帧率（《数值设定.md》§13 / main.py 锁定 30 fps）
-FPS = 30
+#: 游戏帧率（《数值设定.md》§13 / main.py 锁定 60 fps）
+FPS = 60
 
 #: 读档结果码
 RESULT_OK = "ok"

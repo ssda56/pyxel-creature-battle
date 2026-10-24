@@ -14,7 +14,7 @@
 「继续游戏」按确认键 -> 读档（save_io.load_game）：
 
 - "ok"          -> 进入 FieldScene（地图 / 坐标 / 朝向都来自存档）；
-- "no_file"     -> 标题下方显示「没有找到存档」60 帧；
+- "no_file"     -> 标题下方显示「没有找到存档」120 帧（2 秒）；
 - "bad_version" -> 显示「存档版本不兼容」；
 - "corrupt"     -> 显示「存档已损坏」。
 
@@ -46,8 +46,9 @@ MENU_STEP = 22
 CURSOR_X = 78
 FOOTER_Y = 196
 #: 读档失败提示的 y 坐标与持续帧数
+#: HINT_FRAMES = 120 帧 @60fps = 2 秒，与 60 帧 @30fps 一致
 HINT_Y = 150
-HINT_FRAMES = 60
+HINT_FRAMES = 120
 
 #: 读档结果码 -> 提示文字
 LOAD_ERROR_HINTS: dict[str, str] = {

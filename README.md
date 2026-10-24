@@ -16,7 +16,7 @@
 |---|---|
 | 解释器 | `E:\小说2\精灵对战小游戏\.venv\Scripts\python.exe`（Python 3.12.14） |
 | 依赖 | 仅 `pyxel`（2.9.9）+ Python 标准库，**不要 pip install 任何东西** |
-| 画面 | 240 x 216，30 fps（**已锁定**） |
+| 画面 | 240 x 216，60 fps（**已锁定**） |
 | 操作系统 | Windows（中文渲染依赖 Windows 系统字体） |
 
 ## 2. 运行
@@ -83,7 +83,7 @@ E:\小说2\精灵对战小游戏\.venv\Scripts\python.exe -m unittest discover -
     ├── test_title_flow.py       # 新游戏 -> FieldScene
     ├── test_input_keys.py       # WASD + 方向键映射
     ├── test_map_data.py         # 地图尺寸 / 图块 / 传送有效性
-    ├── test_field_movement.py   # 每格 10 帧 / 撞墙 / 越界
+    ├── test_field_movement.py   # 每格 20 帧 / 撞墙 / 越界
     ├── test_camera.py           # 摄像机夹取与居中
     ├── test_portal.py           # 传送
     ├── test_field_npc.py        # NPC 对话
@@ -160,7 +160,7 @@ pyxel.blt(x, y, img, 0, 0, 16, 16, colkey=0)
 **已做**：工程骨架、输入抽象、场景栈、标题画面、中文文本模块、调色板、
 图块 / 主角 / 精灵占位素材、单元测试与截图自检。
 
-**批 1 已补**：地图数据（新手村 30x20 / 野外 40x30）、四向网格移动（每格 10 帧插值）、
+**批 1 已补**：地图数据（新手村 30x20 / 野外 40x30）、四向网格移动（每格 20 帧插值）、
 碰撞、摄像机跟随与边界夹取、NPC 对话、地图传送、淡入淡出转场。
 
 **没做（后续批次）**：遇敌、战斗、捕捉、背包、商店、存档、音效、正式美术。

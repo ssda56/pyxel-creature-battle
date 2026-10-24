@@ -136,7 +136,7 @@ class MenuListTest(unittest.TestCase):
 class DamageNumberUnitTest(unittest.TestCase):
     """13.3：圆圈飘字的生命周期与配色。"""
 
-    def test_lifetime_is_30_frames(self):
+    def test_lifetime_is_60_frames(self):
         number = DamageNumber(100, 100, 12, "enemy")
         for _ in range(LIFETIME - 1):
             self.assertTrue(number.update())

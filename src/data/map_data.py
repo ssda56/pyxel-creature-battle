@@ -144,8 +144,8 @@ MAPS: dict[int, dict] = {
         #: 遇敌表（《数值设定.md》§10.3 参数 + §10.4 区域 2 野外权重）。
         "encounters": {
             "max_alive": 4,                  # 同屏存活上限
-            "respawn_frames": 180,           # 重生冷却（6 秒）
-            "move_min": 40, "move_max": 70,  # 游走间隔（帧）
+            "respawn_frames": 360,           # 重生冷却（360 帧 @60fps = 6 秒）
+            "move_min": 80, "move_max": 140,  # 游走间隔（帧；80~140 帧 @60fps = 1.33~2.33 秒）
             "table": [                       # 权重之和 = 100
                 {"species_id": 3, "level_min": 2, "level_max": 5, "weight": 30},  # 兔小子
                 {"species_id": 1, "level_min": 3, "level_max": 6, "weight": 25},  # 小火狮
@@ -224,8 +224,8 @@ def encounters_of(map_id: int) -> dict | None:
 
     结构::
 
-        {"max_alive": 4, "respawn_frames": 180,
-         "move_min": 40, "move_max": 70,
+        {"max_alive": 4, "respawn_frames": 360,
+         "move_min": 80, "move_max": 140,
          "table": [{"species_id": .., "level_min": .., "level_max": .., "weight": ..}]}
     """
     enc = get_map(map_id).get("encounters")

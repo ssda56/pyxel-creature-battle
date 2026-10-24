@@ -19,7 +19,7 @@ from src.data import map_data
 from src.model import save_io
 from src.scenes.field_scene import FieldScene
 from src.scenes.starter_scene import StarterScene
-from src.scenes.title_scene import TitleScene
+from src.scenes.title_scene import HINT_FRAMES, TitleScene
 from tests import helpers
 
 
@@ -64,13 +64,13 @@ class TitleFlowTest(unittest.TestCase):
         self.assertIsInstance(game.scenes.current, TitleScene)
         self.assertEqual(game.scenes.current.hint, "没有找到存档")
 
-    def test_hint_disappears_after_60_frames(self):
-        """提示 60 帧后自动消失。"""
+    def test_hint_disappears_after_120_frames(self):
+        """提示 120 帧（60fps = 2 秒）后自动消失。"""
         game = Game(input=FakeInput(script=[{"down": 1}, {"confirm": 1}]))
         game.update()
         game.update()
         self.assertTrue(game.scenes.current.hint)
-        for _ in range(60):
+        for _ in range(HINT_FRAMES):
             game.update()
         self.assertEqual(game.scenes.current.hint, "")
 

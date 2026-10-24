@@ -1,7 +1,7 @@
 """地图移动测试（src/scenes/field_scene.py）。
 
 覆盖：
-- 走一格正好 10 帧（第 9 帧还没落格，第 10 帧落格）；
+- 走一格正好 20 帧（第 19 帧还没落格，第 20 帧落格）；
 - 移动是像素级插值（不是瞬移）；
 - 撞墙不动，但朝向会变；
 - 越界不动；
@@ -18,20 +18,20 @@ from tests import field_helpers
 
 
 class StepTimingTest(unittest.TestCase):
-    """一格 10 帧。"""
+    """一格 20 帧。"""
 
-    def test_one_tile_takes_exactly_10_frames(self):
+    def test_one_tile_takes_exactly_20_frames(self):
         game, scene = field_helpers.make_field(
             map_id=1, script=[{"right": 60}], x=15, y=10)
         self.assertEqual((scene.gx, scene.gy), (15, 10))
 
         field_helpers.run(game, STEP_FRAMES - 1)
-        # 第 9 帧：还在路上，没落格
+        # 第 19 帧：还在路上，没落格
         self.assertEqual(scene.gx, 15)
         self.assertTrue(scene.moving)
 
         field_helpers.run(game, 1)
-        # 第 10 帧：正好落格
+        # 第 20 帧：正好落格
         self.assertEqual(scene.gx, 16)
         self.assertEqual(scene.gy, 10)
 
@@ -41,12 +41,12 @@ class StepTimingTest(unittest.TestCase):
             map_id=1, script=[{"right": 60}], x=15, y=10)
         start_px = scene.px
 
-        field_helpers.run(game, 5)
+        field_helpers.run(game, STEP_FRAMES // 2)
         self.assertGreater(scene.px, start_px)      # 已经动了一点
         self.assertLess(scene.px, start_px + 16)    # 但还没走完一格
         self.assertEqual(scene.gx, 15)              # 格坐标还没变
 
-        field_helpers.run(game, 5)
+        field_helpers.run(game, STEP_FRAMES // 2)
         # 正好走完一格（并已开始下一格）
         self.assertEqual(scene.gx, 16)
         self.assertGreaterEqual(scene.px, start_px + 16)
@@ -60,12 +60,15 @@ class StepTimingTest(unittest.TestCase):
         self.assertEqual(scene.gy, 10)
 
     def test_walk_animation_switches_frame(self):
-        """移动中每 10 帧切一帧；静止时用帧 0。"""
+        """移动中每 20 帧切一帧；静止时用帧 0。"""
         game, scene = field_helpers.make_field(
             map_id=1, script=[{"right": 60}], x=15, y=10)
         field_helpers.run(game, STEP_FRAMES * 2 - 2)
         self.assertEqual(scene.anim, 1)
-        field_helpers.run(game, 30)
+        # 再跑 60 帧（= 原来的 30 帧 @30fps，同样是 1 秒）：
+        # 脚本（按住 right 共 60 帧）用完、当前这一步也走完 -> 玩家真的停下
+        field_helpers.run(game, 60)
+        self.assertFalse(scene.moving, "脚本用完后玩家应该停下")
         self.assertEqual(scene.anim, 0)   # 停下后回到站立帧
 
 

@@ -60,7 +60,7 @@ class SceneCameraTest(unittest.TestCase):
         game, scene = field_helpers.make_field(
             map_id=1, script=[{"right": 60}], x=15, y=10)
         before = scene.camera_x
-        field_helpers.run(game, 30)
+        field_helpers.run(game, 60)   # 60 帧 @60fps = 1 秒（与原来的 30 帧 @30fps 等长）
         self.assertGreater(scene.camera_x, before)
 
     def test_camera_never_leaves_map(self):

@@ -12,7 +12,7 @@ r"""精灵对战小游戏 —— 程序入口。
 **注意**：中文输入法（IME）开启时会吞掉键盘事件——画面正常刷新但人物
 不走。游玩前请切到英文输入法（Shift 或 Win+Space）。详见 README「已知限制」。
 
-分辨率固定 240x216，帧率固定 30。
+分辨率固定 240x216，帧率固定 60。
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from src.ui import text  # noqa: E402
 SCREEN_WIDTH = 240
 SCREEN_HEIGHT = 216
 #: 帧率（锁定）
-FPS = 30
+FPS = 60
 #: 窗口标题
 TITLE = "精灵对战"
 

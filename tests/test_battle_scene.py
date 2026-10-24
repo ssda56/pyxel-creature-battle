@@ -4,7 +4,7 @@
 
 - INTRO -> COMMAND -> SKILL_SELECT -> COMMAND 的状态流转；
 - 5.3 技能 MP 不足 -> 置灰且确认键无效；
-- 4.1 伤害飘字：命中后出现圆圈数字，30 帧后消失；
+- 4.1 伤害飘字：命中后出现圆圈数字，60 帧后消失；
 - 5.4 我方倒下 -> 强制换人（不可取消）。
 """
 
@@ -139,7 +139,7 @@ class MpGreyOutTest(unittest.TestCase):
 
 
 class DamageNumberTest(unittest.TestCase):
-    """13.3：命中后出现圆圈数字，30 帧后消失。"""
+    """13.3：命中后出现圆圈数字，60 帧后消失。"""
 
     def setUp(self):
         helpers.ensure_init()
@@ -162,13 +162,13 @@ class DamageNumberTest(unittest.TestCase):
         self.assertEqual(number.value, self.enemy.hp_max - self.enemy.hp)
         self.assertEqual(number.kind, "enemy")
 
-    def test_damage_number_disappears_after_30_frames(self):
+    def test_damage_number_disappears_after_60_frames(self):
         self._attack()
         self.assertEqual(self.scene.numbers.count, 1)
         bh.idle(self.game, LIFETIME - 1)
-        self.assertEqual(self.scene.numbers.count, 1, "未到 30 帧不该消失")
+        self.assertEqual(self.scene.numbers.count, 1, "未到 60 帧不该消失")
         bh.idle(self.game, 1)
-        self.assertEqual(self.scene.numbers.count, 0, "30 帧后飘字应该消失")
+        self.assertEqual(self.scene.numbers.count, 0, "60 帧后飘字应该消失")
 
 
 class ForcedSwitchTest(unittest.TestCase):
