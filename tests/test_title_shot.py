@@ -58,10 +58,21 @@ class TitleSceneBehaviourTest(unittest.TestCase):
         self.assertEqual(self.scene.index, len(MENU_ITEMS) - 1)
 
     def test_confirm_does_not_crash(self):
-        """批 1 起：「新游戏」确认键会进入 FieldScene（原来只是占位打印）。"""
-        from src.scenes.field_scene import FieldScene
+        """T5 起：「新游戏」确认键进入开局三选一（StarterScene）。"""
+        from src.scenes.starter_scene import StarterScene
 
         self.game.input = FakeInput(script=[{"confirm": 1}])
+        self.game.update()
+        self.assertIsInstance(self.game.scenes.current, StarterScene)
+
+    def test_starter_confirm_reaches_field_scene(self):
+        """三选一再确认一次 -> FieldScene。"""
+        from src.scenes.field_scene import FieldScene
+
+        # 两段 confirm 之间留一帧空档（FakeInput.pressed 是边沿检测）
+        self.game.input = FakeInput(script=[{"confirm": 1}, {}, {"confirm": 1}])
+        self.game.update()
+        self.game.update()
         self.game.update()
         self.assertIsInstance(self.game.scenes.current, FieldScene)
 

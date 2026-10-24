@@ -37,10 +37,15 @@ def make_battle(enemy_species: int = 3, enemy_level: int = 5, seed=None,
 
     from src.core.game import Game
     from src.core.input import FakeInput
-    from src.model import Creature
+    from src.data import species_data as sd
+    from src.model import Creature, Player
     from src.scenes.battle_scene import BattleScene
 
     game = Game(input=FakeInput())
+    if game.player is None:
+        # T5 起 Game.player 初值是 None（还没开局）。战斗场景自己也会兜底建一个，
+        # 这里先装上，行为与 T5 之前完全一致。
+        game.player = Player.new_game(sd.STARTER_IDS[0])
     if player is not None:
         game.player = player
     if party is not None:

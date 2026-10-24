@@ -29,8 +29,10 @@ PURE_PACKAGES = ("src/data", "src/battle", "src/model")
 FORBIDDEN_IMPORTS = ("pyxel", "src.ui", "src.scenes", "src.core", "src.assets_gen")
 
 #: 标准库 / 无副作用模块白名单（数据层只允许依赖这些）
+#: （T5 起多了 json / os / datetime：src/model/save_io.py 要读写 JSON 存档文件）
 _STDLIB_OK = frozenset({
     "__future__", "math", "random", "dataclasses", "typing", "collections",
+    "json", "os", "datetime",
 })
 
 #: 本批新增的模块（子进程里逐个 import）
@@ -43,6 +45,7 @@ NEW_MODULES = (
     "src.battle.catch_calc",
     "src.model.creature",
     "src.model.player",
+    "src.model.save_io",
 )
 
 

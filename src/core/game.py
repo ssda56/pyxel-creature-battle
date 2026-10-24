@@ -18,7 +18,6 @@ from src.assets_gen import sprite_base
 from src.core.input import Input, RealInput
 from src.core.scene_manager import SceneManager
 from src.data import map_data
-from src.data import species_data as sd
 from src.model import Player
 from src.scenes.title_scene import TitleScene
 from src.ui import text
@@ -48,8 +47,13 @@ class Game:
         }
 
         #: 玩家状态（队伍 / 金币 / 背包）。
-        #: **临时**：T5 会换成「开局三选一」流程（现在固定用御三家第一只）。
-        self.player: Player = Player.new_game(sd.STARTER_IDS[0])
+        #: **未开局时是 None**：玩家由「开局三选一」（StarterScene）或
+        #: 「继续游戏」（load_game）创建，标题画面不需要玩家。
+        #: 任何场景都必须容忍 player 为 None（见 menu_scene 的 _player()）。
+        self.player: Player | None = None
+
+        #: 游戏内计时（帧）。存档里的 play_seconds = play_frames // 30。
+        self.play_frames: int = 0
 
         self.scenes.push(TitleScene(self))
 
@@ -60,6 +64,15 @@ class Game:
         顺序：先跑场景逻辑，再让输入推进到下一帧
         （这样第 N 帧的场景看到的就是第 N 帧的输入状态）。
         """
+        self.play_frames += 1
+
+        # 金币以 player 为准（战斗 / 商店改的都是 player.dollars），
+        # 这里同步回 player_state，HUD 与存档都读它。
+        if self.player is not None:
+            state = getattr(self, "player_state", None)
+            if isinstance(state, dict):
+                state["dollars"] = int(self.player.dollars)
+
         scene = self.scenes.current
         if scene is not None:
             scene.update(self.input)

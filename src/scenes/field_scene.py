@@ -9,7 +9,7 @@
 - HUD：左上角「金币 N」（色 10 黄）+ 右上角地图名；
 - NPC 对话：面向相邻格的 NPC 按确认键，底部对话框逐句显示；
 - Portal：踩到出入口格 -> 淡出 -> 换地图 -> 淡入；
-- menu 键：HUD 下方提示一行「菜单（将在 T5 实现）」60 帧。
+- menu 键：**压栈**打开菜单（MenuScene），关掉后地图状态原样保留。
 
 坐标约定
 --------
@@ -46,6 +46,7 @@ import pyxel
 from src.assets_gen import palette, sprite_base
 from src.assets_gen.sprites import tileset
 from src.data import map_data
+from src.scenes.menu_scene import MenuScene
 from src.scenes.scene_base import Scene
 from src.ui import text
 from src.ui.transition import Fade
@@ -59,9 +60,6 @@ STEP_FRAMES = 10
 
 #: 转场淡入淡出帧数
 FADE_FRAMES = 15
-
-#: menu 提示持续的帧数
-HINT_FRAMES = 60
 
 #: 方向 -> (dx, dy)
 DIRECTIONS: dict[str, tuple[int, int]] = {
@@ -117,10 +115,6 @@ def wild_rng_of(game):
 #: 对话框位置（《数值设定.md》§13.4：底部 240x48，2 行 19 字）
 BOX_X, BOX_Y, BOX_W, BOX_H = 0, 168, 240, 48
 BOX_PAD = 6
-
-#: HUD 提示文字
-MENU_HINT_TEXT = "菜单（将在 T5 实现）"
-
 
 def compute_camera(player_cx: float, player_cy: float,
                    map_w_px: int, map_h_px: int,
@@ -183,8 +177,6 @@ class FieldScene(Scene):
         self.fade = Fade()
         #: 等待传送的出入口
         self.pending_portal = None
-        #: menu 提示剩余帧数
-        self.hint_timer = 0
 
         #: 本次战斗中参战的野生精灵（战斗结束时用来移除它）
         self.battle_target = None
@@ -310,11 +302,10 @@ class FieldScene(Scene):
                 self.open_dialogue(npc)
                 return
 
-        # menu 键：显示一行提示
+        # menu 键：压栈打开菜单（不是 replace —— 地图状态要原样保留）
         if inp.pressed("menu"):
-            self.hint_timer = HINT_FRAMES
-        if self.hint_timer > 0:
-            self.hint_timer -= 1
+            self.game.scenes.push(MenuScene(self.game))
+            return
 
         direction = self._read_direction(inp)
 
@@ -836,7 +827,7 @@ class FieldScene(Scene):
                   img, 0, 0, 16, 16, colkey=0)
 
     def _draw_hud(self) -> None:
-        """左上角金币 + 右上角地图名 + menu 提示。"""
+        """左上角金币 + 右上角地图名。"""
         dollars = (getattr(self.game, "player_state", None) or {}).get("dollars", 300)
         money_text = f"金币 {dollars}"
         mw = text.width(money_text)
@@ -847,9 +838,6 @@ class FieldScene(Scene):
         nw = text.width(name)
         pyxel.rect(SCREEN_W - nw - 8, 0, nw + 8, 16, palette.DEEP_BLUE)
         text.draw(SCREEN_W - nw - 4, 2, name, palette.WHITE)
-
-        if self.hint_timer > 0:
-            text.draw(4, 18, MENU_HINT_TEXT, palette.YELLOW)
 
     def _draw_dialogue(self) -> None:
         """底部对话框：白底黑字，2 行 19 字（《数值设定.md》§13.4）。"""

@@ -119,15 +119,18 @@ class NpcDialogueTest(unittest.TestCase):
 
 
 class HudTest(unittest.TestCase):
-    """HUD 与 menu 提示。"""
+    """HUD 与 menu 键（T5 起 menu 键打开菜单，不再弹提示）。"""
 
-    def test_menu_key_shows_hint(self):
+    def test_menu_key_opens_menu(self):
+        from src.scenes.menu_scene import MenuScene
+
         game, scene = field_helpers.make_field(
-            map_id=1, script=[{"menu": 1}, {"up": 80}], x=15, y=10)
+            map_id=1, script=[{"menu": 1}], x=15, y=10)
         field_helpers.run(game, 1)
-        self.assertGreater(scene.hint_timer, 0)
-        field_helpers.run(game, 60)
-        self.assertEqual(scene.hint_timer, 0)
+        self.assertIsInstance(game.scenes.current, MenuScene)
+        self.assertEqual(len(game.scenes), 2)
+        # 菜单是压栈进来的：地图场景还在栈里
+        self.assertIs(game.scenes.stack[0], scene)
 
     def test_hud_reads_dollars_from_player_state(self):
         game, scene = field_helpers.make_field(map_id=1, x=15, y=10)
