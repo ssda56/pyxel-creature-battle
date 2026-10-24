@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 虚拟环境
+.venv/
+venv/
+
+# PyCharm / IDE
+.idea/
+
+# pip 安装残留
+pip-install-*/
+pip-unpack-*/
+pip-build-tracker-*/
+pip-ephem-wheel-cache-*/
+pip-metadata-*/
+
+# 运行时产物
+saves/*.json
+!saves/.gitkeep
+
+# 系统垃圾
+Thumbs.db
+Desktop.ini
+.DS_Store
