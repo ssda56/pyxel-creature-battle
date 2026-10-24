@@ -33,6 +33,7 @@ import pyxel
 
 from src.assets_gen import palette, sprite_base
 from src.battle import catch_calc, damage_calc
+from src.battle.type_chart import multiplier
 from src.data import item_data as it
 from src.data import map_data
 from src.data import skill_data as sk
@@ -40,7 +41,7 @@ from src.data import species_data as sd
 from src.model import Creature, Player
 from src.scenes.field_scene import FieldScene
 from src.scenes.scene_base import Scene
-from src.ui import text
+from src.ui import sound, text
 from src.ui.damage_number import DamageNumberGroup
 from src.ui.transition import Fade
 from src.ui.widgets import MenuList, draw_status_box
@@ -247,6 +248,8 @@ class BattleScene(Scene):
         self.state = self.INTRO
         self.intro_text = f"野生的{self.enemy.display_name}出现了！"
         self._build_command_menu()
+        # 战斗 BGM（T8b）：顶掉地面的 field / cave 音乐
+        sound.play_bgm("battle")
 
     def resume(self) -> None:
         """回到前台：战斗状态不变。"""
@@ -536,6 +539,8 @@ class BattleScene(Scene):
             )
             actual = defender.take_damage(dmg)
             self._spawn_damage(defender, actual, defender is self.active)
+            # 命中音效（T8b）：我方受击 -> hurt，打中敌人按克制系数选 hit / hit_super
+            self._play_hit_sound(defender, info)
             self._say(f"{defender.display_name} 受到了 {actual} 点伤害！",
                       then=lambda: self._after_attack(attacker, defender, then))
         elif info.effect == "heal":
@@ -549,6 +554,28 @@ class BattleScene(Scene):
             defender.apply_atk_mod(info.value, info.duration)
             self._say(f"{defender.display_name} 的攻击下降了！",
                       then=lambda: self._after_attack(attacker, defender, then))
+
+    def _play_hit_sound(self, defender: Creature, info) -> None:
+        """命中音效（T8b）。
+
+        - 被打的是**我方**出战精灵 -> 受击音（hurt）；
+        - 打到敌人 -> 按克制系数选普通命中（hit）或克制命中（hit_super）。
+        """
+        if defender is self.active:
+            sound.play_sfx("hurt")
+            return
+        try:
+            mult = multiplier(info.type, defender.species.type)
+        except Exception:
+            mult = 1.0
+        sound.play_sfx("hit_super" if mult > 1.0 else "hit")
+
+    def _play_level_up(self, events) -> None:
+        """经验事件里出现升级就播升级音（T8b）。"""
+        for event in events or []:
+            if str(event).startswith("升到"):
+                sound.play_sfx("level_up")
+                return
 
     def _after_attack(self, attacker: Creature, defender: Creature,
                        then=None) -> None:
@@ -648,6 +675,7 @@ class BattleScene(Scene):
             catch_calc.BALL_MULTIPLIER, self._rng,
         )
         if not ok:
+            sound.play_sfx("catch_fail")
             self._say("……没能捕捉到！", then=self._enemy_turn)
             return
 
@@ -655,8 +683,11 @@ class BattleScene(Scene):
         place = "队伍" if where == "party" else "仓库"
         msgs = [f"捕捉成功！{self.enemy.display_name} 加入了{place}！"]
         exp = catch_exp(self.enemy.level)
-        for event in self.active.gain_exp(exp):
+        events = self.active.gain_exp(exp)
+        for event in events:
             msgs.append(f"{self.active.display_name} {event}")
+        sound.play_sfx("catch_ok")
+        self._play_level_up(events)
         self._say_series(msgs, then=lambda: self._finish_battle(self.RESULT_CATCH))
 
     # ================================================================ 逃跑
@@ -665,6 +696,7 @@ class BattleScene(Scene):
         self._player_acted = True
         chance = escape_chance(self.active.speed, self.enemy.speed)
         if self._rng.random() < chance:
+            sound.play_sfx("escape")
             self._say("成功逃走了！",
                       then=lambda: self._finish_battle(self.RESULT_RUN))
         else:
@@ -729,6 +761,7 @@ class BattleScene(Scene):
     # ================================================================ 胜利
     def _start_victory(self) -> None:
         """战斗胜利结算（§5.7）。"""
+        sound.play_sfx("victory")
         msgs = [f"{self.enemy.display_name} 被打倒了！"]
         msgs.extend(self._grant_victory_rewards())
         self._say_series(msgs, then=lambda: self._finish_battle(self.RESULT_WIN))
@@ -738,11 +771,14 @@ class BattleScene(Scene):
         msgs: list[str] = []
         mp_gain = mp_recover_amount(self.active.mp_max)
         exp = victory_exp(self.enemy.level)
-        for event in self.active.gain_exp(exp):
+        events = self.active.gain_exp(exp)
+        for event in events:
             msgs.append(f"{self.active.display_name} {event}")
+        self._play_level_up(events)
         money = victory_dollars(self.enemy.level)
         self.player.dollars += money
         msgs.append(f"获得 {money} 金币！")
+        sound.play_sfx("coin")
         self.active.heal_mp(mp_gain)
         msgs.append(f"{self.active.display_name} 恢复了 {mp_gain} 点 MP！")
         return msgs
@@ -750,6 +786,7 @@ class BattleScene(Scene):
     # ================================================================ 战败
     def _start_defeat(self) -> None:
         """战败流程（§5.6）：淡出 -> 台词 -> 全队回复 -> 回新手村。"""
+        sound.play_sfx("defeat")
         self.state = self.RESULT
         self.fade.start_out(DEFEAT_FADE_FRAMES, on_done=self._defeat_fade_done)
 

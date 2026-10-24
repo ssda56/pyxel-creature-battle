@@ -45,7 +45,7 @@ from src.data import map_data
 from src.model import Player
 from src.model import save_io
 from src.scenes.title_scene import TitleScene
-from src.ui import text
+from src.ui import sound, text
 
 #: 画面尺寸（与 main.py 锁定值一致）
 SCREEN_W = 240
@@ -71,6 +71,11 @@ QUIT_OPTION_Y = QUIT_BOX_Y + 28
 QUIT_OPTION_STEP = 18
 #: 失败原因提示的 y
 QUIT_MESSAGE_Y = QUIT_BOX_Y + 82
+
+#: 静音提示（T8b）：右上角小字显示的帧数（60 帧 @60fps = 1 秒）
+MUTE_HINT_FRAMES = 60
+#: 静音提示的 y 坐标（地图 HUD 的地图名条占 y 0~16，所以放在 18）
+MUTE_HINT_Y = 18
 
 
 class Game:
@@ -107,6 +112,11 @@ class Game:
 
         #: 退出确认弹窗是否打开（批 5 / T10）
         self.quit_dialog_active: bool = False
+        #: 静音提示剩余帧数（T8b：按 M 切换静音时在右上角闪一下）
+        self.mute_hint_timer: int = 0
+
+        # 音频初始化（T8b）：幂等，失败也不影响游戏（详见 src/ui/sound.py）
+        sound.init()
         #: 弹窗里的补充说明（空串 = 不显示），例如存档失败的原因
         self.quit_message: str = ""
 
@@ -119,6 +129,14 @@ class Game:
         顺序：先跑场景逻辑，再让输入推进到下一帧
         （这样第 N 帧的场景看到的就是第 N 帧的输入状态）。
         """
+        # M 键：切换静音（T8b）。放在最前面，**任何场景**（包括退出弹窗
+        # 打开时）都能按；静音状态本身放在 src/ui/sound.py 里。
+        if self.input.pressed("mute"):
+            sound.toggle_mute()
+            self.mute_hint_timer = MUTE_HINT_FRAMES
+        if self.mute_hint_timer > 0:
+            self.mute_hint_timer -= 1
+
         # 退出确认弹窗打开时：**游戏逻辑暂停**（不跑场景的 update），
         # 只处理弹窗自己的输入；弹窗期间也不计时（play_frames 不涨）。
         if self.quit_dialog_active:
@@ -154,6 +172,9 @@ class Game:
         # 退出确认弹窗画在**所有场景内容之上**
         if self.quit_dialog_active:
             self._draw_quit_dialog()
+        # 静音提示画在最上层（T8b）
+        if self.mute_hint_timer > 0:
+            self._draw_mute_hint()
 
     # ------------------------------------------------------------ 退出确认
     def open_quit_dialog(self) -> None:
@@ -219,6 +240,15 @@ class Game:
             return
         if self.input.pressed("quit"):           # Esc 也能取消
             self.close_quit_dialog()
+
+    def _draw_mute_hint(self) -> None:
+        """右上角小字提示「静音 / 取消静音」（切换后显示 60 帧就消失）。"""
+        label = "静音" if sound.is_muted() else "取消静音"
+        w = text.width(label)
+        x = SCREEN_W - w - 4
+        y = MUTE_HINT_Y
+        pyxel.rect(x - 3, y - 2, w + 6, 16, palette.DEEP_BLUE)
+        text.draw(x, y, label, palette.YELLOW)
 
     def _draw_quit_dialog(self) -> None:
         """绘制退出确认弹窗（盖在所有场景内容之上）。"""

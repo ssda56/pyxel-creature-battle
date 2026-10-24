@@ -36,7 +36,7 @@ import pyxel
 from src.assets_gen import palette, sprite_base
 from src.data import item_data
 from src.scenes.scene_base import Scene
-from src.ui import text
+from src.ui import sound, text
 from src.ui.widgets import MenuList
 
 #: 画面尺寸（与 main.py 锁定值一致）
@@ -215,17 +215,23 @@ class ShopScene(Scene):
         elif inp.pressed("confirm"):
             self._on_confirm()
         elif self.mode == MODE_MAIN:
+            before = self.main_menu.index
             if inp.pressed("up"):
                 self.main_menu.move(-1)
             elif inp.pressed("down"):
                 self.main_menu.move(1)
+            if self.main_menu.index != before:
+                sound.play_sfx("cursor")
             self.main_index = self.main_menu.index
         else:
+            before = self.item_menu.index
             if self.item_menu.count:
                 if inp.pressed("up"):
                     self.item_menu.move(-1)
                 elif inp.pressed("down"):
                     self.item_menu.move(1)
+            if self.item_menu.index != before:
+                sound.play_sfx("cursor")
             self.list_index = self.item_menu.index
 
         # 帧末再刷新一次：本帧的输入可能改了界面（换页 / 买 / 卖），
@@ -235,6 +241,7 @@ class ShopScene(Scene):
     # ------------------------------------------------------------ 操作
     def _on_cancel(self) -> None:
         """取消键：列表 -> 主菜单 -> 关闭商店。"""
+        sound.play_sfx("cancel")
         if self.mode == MODE_MAIN:
             self.close()
         else:
@@ -243,6 +250,7 @@ class ShopScene(Scene):
 
     def _on_confirm(self) -> None:
         """确认键：按当前界面分发。"""
+        sound.play_sfx("confirm")
         if self.mode == MODE_MAIN:
             self._confirm_main()
         elif self.mode == MODE_BUY:
@@ -301,6 +309,7 @@ class ShopScene(Scene):
         self._set_dollars(dollars - item.price)
         player.add_item(item.id, 1)
         self._say(f"购买了{item.name}")
+        sound.play_sfx("coin")
         return True
 
     def sell(self, item_id: int) -> bool:
@@ -322,6 +331,7 @@ class ShopScene(Scene):
         player.remove_item(item.id, 1)
         self._set_dollars(self._dollars() + item.sell)
         self._say(f"卖出了{item.name}")
+        sound.play_sfx("coin")
         return True
 
     def _say(self, message: str, frames: int = MESSAGE_FRAMES) -> None:

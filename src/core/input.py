@@ -1,8 +1,8 @@
 """输入抽象层。
 
-游戏逻辑只认 8 个**动作**，不认具体物理按键：
+游戏逻辑只认 9 个**动作**，不认具体物理按键：
 
-    up / down / left / right / confirm / cancel / menu / quit
+    up / down / left / right / confirm / cancel / menu / quit / mute
 
 - `RealInput`：读真实键盘（pyxel.btn / pyxel.btnp）。
 - `FakeInput`：按脚本注入，测试用。
@@ -20,6 +20,7 @@ confirm  Z / K / Enter   （pyxel.KEY_RETURN 即回车）
 cancel   X / J / Backspace
 menu     C
 quit     Esc            退出确认（弹「存档并退出 / 直接退出 / 取消」）
+mute     M              切换静音（T8b：任意场景都能按）
 ======== ========== ==========================================
 
 **Esc 的处理（批 5 / T10 改过）**：以前 Esc 是 Pyxel 默认退出键
@@ -34,7 +35,7 @@ import pyxel
 
 #: 全部动作名，顺序固定
 ACTIONS: tuple[str, ...] = ("up", "down", "left", "right", "confirm", "cancel",
-                           "menu", "quit")
+                           "menu", "quit", "mute")
 
 #: 动作 -> 物理按键码
 KEY_MAP: dict[str, tuple[int, ...]] = {
@@ -46,6 +47,7 @@ KEY_MAP: dict[str, tuple[int, ...]] = {
     "cancel": (pyxel.KEY_X, pyxel.KEY_J, pyxel.KEY_BACKSPACE),
     "menu": (pyxel.KEY_C,),
     "quit": (pyxel.KEY_ESCAPE,),
+    "mute": (pyxel.KEY_M,),
 }
 
 

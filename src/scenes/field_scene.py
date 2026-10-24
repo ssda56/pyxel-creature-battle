@@ -49,7 +49,7 @@ from src.data import map_data
 from src.scenes.menu_scene import MenuScene
 from src.scenes.scene_base import Scene
 from src.scenes.shop_scene import ShopScene
-from src.ui import text
+from src.ui import sound, text
 from src.ui.transition import Fade
 
 #: 画面尺寸（与 main.py 锁定值一致）
@@ -130,6 +130,9 @@ def wild_rng_of(game):
 
 #: 对话框位置（《数值设定.md》§13.4：底部 240x48，2 行 19 字）
 BOX_X, BOX_Y, BOX_W, BOX_H = 0, 168, 240, 48
+
+#: 地图 ID -> BGM 名（T8b）：洞窟放 cave，其余（新手村 / 野外）放 field
+BGM_BY_MAP: dict[int, str] = {1: "field", 2: "field", 3: "cave"}
 BOX_PAD = 6
 
 
@@ -294,6 +297,9 @@ class FieldScene(Scene):
         # 不会重置已经存活的精灵与重生冷却。
         self._refresh_population()
 
+        # BGM（T8b）：按地图切音乐；同一首正在播时不会重启。
+        sound.play_bgm(BGM_BY_MAP.get(map_id, "field"))
+
     def sync_state(self) -> None:
         """把当前位置 / 朝向 / 地图写回 game.player_state（存档系统用）。"""
         state = getattr(self.game, "player_state", None)
@@ -353,6 +359,7 @@ class FieldScene(Scene):
 
         # menu 键：压栈打开菜单（不是 replace —— 地图状态要原样保留）
         if inp.pressed("menu"):
+            sound.play_sfx("confirm")
             self.game.scenes.push(MenuScene(self.game))
             return
 
@@ -537,6 +544,7 @@ class FieldScene(Scene):
         """
         kind = npc.get("kind")
         if kind == "shop":
+            sound.play_sfx("confirm")
             self.game.scenes.push(ShopScene(self.game, npc))
         elif kind == "heal":
             self._start_heal(npc)
@@ -552,6 +560,8 @@ class FieldScene(Scene):
         self.heal_total = HEAL_FRAMES
         self.heal_timer = HEAL_FRAMES
         self.heal_elapsed = 0
+        # 治疗音效（T8b）
+        sound.play_sfx("heal")
 
     def _update_heal(self) -> None:
         """推进治疗演出（每次 update 一帧）；放完就治疗全队并显示结果对话。"""
@@ -825,6 +835,9 @@ class FieldScene(Scene):
         """
         from src.model import Creature
         from src.scenes.battle_scene import BattleScene
+
+        # 遇敌音效（T8b）：进战斗之前先响一下
+        sound.play_sfx("encounter")
 
         self.battle_target = wanderer
         enemy = Creature(int(wanderer["species_id"]), int(wanderer["level"]))

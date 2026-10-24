@@ -28,7 +28,7 @@ import pyxel  # noqa: E402
 from src.assets_gen import palette  # noqa: E402
 from src.core import focus  # noqa: E402
 from src.core.game import Game  # noqa: E402
-from src.ui import text  # noqa: E402
+from src.ui import sound, text  # noqa: E402
 
 #: 画面尺寸（锁定）
 SCREEN_WIDTH = 240
@@ -69,6 +69,11 @@ def main(argv: list[str] | None = None) -> None:
     # 2) 自定义 16 色调色板 + 字体 + 素材烘焙
     palette.apply()
     text.init_font()
+
+    # 2.5) 音频（T8b）：定义音效 + 载入 BGM + 设置通道音量。
+    #      无声 / 无头环境下 init() 只会把音频标记成「不可用」，
+    #      游戏照常跑（详见 src/ui/sound.py）。
+    sound.init()
 
     # 3) 建 Game
     game = Game()

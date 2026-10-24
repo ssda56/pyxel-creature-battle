@@ -31,7 +31,7 @@ from src.model import save_io
 from src.scenes.field_scene import FieldScene
 from src.scenes.scene_base import Scene
 from src.scenes.starter_scene import StarterScene
-from src.ui import text
+from src.ui import sound, text
 
 TITLE_TEXT = "精灵对战"
 MENU_ITEMS: tuple[str, ...] = ("新游戏", "继续游戏")
@@ -80,14 +80,17 @@ class TitleScene(Scene):
         """上下键移动光标，确认键执行对应菜单项。"""
         if inp.pressed("up"):
             self.index = (self.index - 1) % len(MENU_ITEMS)
+            sound.play_sfx("cursor")
         if inp.pressed("down"):
             self.index = (self.index + 1) % len(MENU_ITEMS)
+            sound.play_sfx("cursor")
         if self.hint_timer > 0:
             self.hint_timer -= 1
             if self.hint_timer <= 0:
                 self.hint_timer = 0
                 self.hint = ""
         if inp.pressed("confirm"):
+            sound.play_sfx("confirm")
             if self.index == 0:
                 # 新游戏：开局三选一（挑初始精灵）
                 self.game.scenes.replace(StarterScene(self.game))

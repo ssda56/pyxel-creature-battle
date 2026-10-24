@@ -29,7 +29,7 @@ from src.assets_gen import palette, sprite_base
 from src.data import item_data, skill_data
 from src.model import save_io
 from src.scenes.scene_base import Scene
-from src.ui import text
+from src.ui import sound, text
 from src.ui.widgets import MenuList, draw_bar
 
 #: 画面尺寸（与 main.py 锁定值一致）
@@ -215,32 +215,42 @@ class MenuScene(Scene):
             return
 
         if self.mode == MODE_MAIN:
+            before = self.main_menu.index
             if inp.pressed("up"):
                 self.main_menu.move(-1)
             elif inp.pressed("down"):
                 self.main_menu.move(1)
+            if self.main_menu.index != before:
+                sound.play_sfx("cursor")
             self.main_index = self.main_menu.index
         elif self.mode in (MODE_PARTY, MODE_TARGET):
             menu = self.party_menu if self.mode == MODE_PARTY else self.target_menu
+            before = menu.index
             if menu.count:
                 if inp.pressed("up"):
                     menu.move(-1)
                 elif inp.pressed("down"):
                     menu.move(1)
+            if menu.index != before:
+                sound.play_sfx("cursor")
             if self.mode == MODE_PARTY:
                 self.party_index = menu.index
             else:
                 self.target_index = menu.index
         elif self.mode == MODE_BAG:
+            before = self.bag_menu.index
             if self.bag_menu.count:
                 if inp.pressed("up"):
                     self.bag_menu.move(-1)
                 elif inp.pressed("down"):
                     self.bag_menu.move(1)
+            if self.bag_menu.index != before:
+                sound.play_sfx("cursor")
             self.bag_index = self.bag_menu.index
 
     def _on_cancel(self) -> None:
         """取消键：返回上一级 / 关闭菜单。"""
+        sound.play_sfx("cancel")
         if self.mode == MODE_MAIN:
             self.close()
         elif self.mode == MODE_PARTY:
@@ -257,6 +267,7 @@ class MenuScene(Scene):
 
     def _on_confirm(self) -> None:
         """确认键：按当前模式分发。"""
+        sound.play_sfx("confirm")
         if self.mode == MODE_MAIN:
             self._confirm_main()
         elif self.mode == MODE_PARTY:
