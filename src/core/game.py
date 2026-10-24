@@ -84,6 +84,9 @@ class Game:
             f"held {','.join(held) if held else '-'}",
             f"prs  {','.join(pressed) if pressed else '-'}",
         ]
+        if isinstance(self.input, RealInput):
+            last = self.input.last_action or "-"
+            rows.append(f"seen={self.input.seen_count} last={last}@{self.input.last_frame}")
         head = []
         for attr in ("facing", "moving"):
             if cur is not None and hasattr(cur, attr):

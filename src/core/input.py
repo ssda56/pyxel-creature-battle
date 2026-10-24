@@ -90,14 +90,23 @@ class RealInput(Input):
 
     def __init__(self) -> None:
         self._dbg_last: frozenset[str] = frozenset()
+        #: 启动至今累计收到过多少次「新按下」的动作（松手后不会清零）
+        self.seen_count: int = 0
+        #: 最近一次收到的动作名
+        self.last_action: str = ""
+        #: 最近一次收到动作时的 pyxel 帧号
+        self.last_frame: int = -1
 
     def update(self) -> None:
-        if not RealInput.DEBUG:
-            return
         current = frozenset(a for a in ACTIONS if self.held(a))
-        if current != self._dbg_last:
+        fresh = current - self._dbg_last
+        if fresh:
+            self.seen_count += len(fresh)
+            self.last_action = sorted(fresh)[-1]
+            self.last_frame = pyxel.frame_count
+        if RealInput.DEBUG and current != self._dbg_last:
             print(f"[input] frame={pyxel.frame_count} held={sorted(current)}")
-            self._dbg_last = current
+        self._dbg_last = current
 
     def held(self, action: str) -> bool:
         return any(pyxel.btn(k) for k in keys_of(action))

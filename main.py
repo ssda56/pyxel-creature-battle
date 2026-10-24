@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pyxel  # noqa: E402
 
 from src.assets_gen import palette  # noqa: E402
+from src.core import focus  # noqa: E402
 from src.core.game import Game  # noqa: E402
 from src.core.input import RealInput  # noqa: E402
 from src.ui import text  # noqa: E402
@@ -72,6 +73,10 @@ def main(argv: list[str] | None = None) -> None:
 
     # 1) 初始化 Pyxel（分辨率 / 帧率锁定）
     pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title=TITLE, fps=FPS, headless=headless)
+
+    # 1.5) 把窗口抢到前台（否则 SDL 收不到键盘事件，表现为"人物不走"）
+    if not headless:
+        focus.grab_focus()
 
     # 2) 自定义 16 色调色板 + 字体 + 素材烘焙
     palette.apply()
