@@ -1,8 +1,49 @@
 # 精灵对战小游戏
 
-一款像素卡通风格的 2D 俯视角精灵对战 RPG（Pyxel 实现），玩法循环参考经典宝可梦式：
+> 一款像素卡通风格的 2D 俯视角精灵对战 RPG，用 Python + [Pyxel](https://github.com/kitao/pyxel) 写的，源码全部公开。
+>
+> 玩法循环：**探索地图 → 遭遇野生精灵 → 战斗 / 捕捉 → 治疗与养成 → 商店补给 → 继续探索**
 
-**探索地图 → 遭遇野生精灵 → 战斗 / 捕捉 → 治疗与养成 → 商店补给 → 继续探索**
+## ⚠️ 运行前必读：目前只能在 Windows 上跑
+
+这个游戏的中文字体**不随项目分发**，而是运行时去操作系统里找，回退链固定为
+`assets/fonts/simhei.ttf` → `C:\Windows\Fonts\simhei.ttf` → `msyh.ttc` → `Deng.ttf` → `simsun.ttc`。
+这些字体只有 Windows 才有。
+
+- **Windows**：装好 Python 就能跑，系统自带黑体。
+- **macOS / Linux**：字体回退全部落空，程序启动时直接抛 `RuntimeError`（"找不到可用的中文字体"），
+  **目前跑不起来**。这不是配置问题，是已知限制（见 §8.3）。
+  想在非 Windows 上运行，需要自行准备一份**可合法使用**的中文字体放进 `assets/fonts/`。
+
+除字体之外，本项目没有别的平台绑定：纯 Python + Pyxel，逻辑层与引擎层是分开的，
+测试也全部是标准库 `unittest`，不需要显卡、不需要联网。
+
+## 快速开始（2 分钟）
+
+```bash
+git clone https://github.com/ssda56/pyxel-creature-battle.git
+cd pyxel-creature-battle
+pip install -r requirements.txt
+python main.py
+```
+
+- 需要 **Windows** 和 **Python 3**（作者环境为 3.12.14）。
+- 依赖只有 `pyxel==2.9.9` 一个（见 `requirements.txt`），其余全是标准库。
+- 启动后进入标题画面：`Z` 确认，方向键 / `WASD` 移动。
+- **游玩前请把输入法切成英文**，否则人物不动（Windows + SDL 的行为，见 §8.1）。
+- 操作、界面、存档的完整说明见 **[docs/游戏说明书.md](docs/游戏说明书.md)**。
+
+## 截图
+
+| 标题画面 | 村庄 | 回合制战斗指令 |
+|---|---|---|
+| ![标题画面](docs/shots/batch1_title.png) | ![村庄](docs/shots/batch1_village.png) | ![战斗指令](docs/shots/batch2_battle_command.png) |
+
+| 野外遭遇战 | 商店购买 | 洞穴 |
+|---|---|---|
+| ![野外遭遇战](docs/shots/batch2_field_battle.png) | ![商店购买](docs/shots/batch3_shop_buy.png) | ![洞穴](docs/shots/batch6_cave.png) |
+
+## 项目概览
 
 | 项 | 值 |
 |---|---|
@@ -16,6 +57,7 @@
 > 本文档面向开发者与维护者。
 >
 > 里程碑 M0–M8 的逐条核对结论在 **[docs/里程碑核对.md](docs/里程碑核对.md)**。
+> 动工前的规划稿（与实际实现有出入，逐条见 §7）在 **[docs/01-规划开发文档.md](docs/01-规划开发文档.md)**。
 
 ---
 
@@ -23,22 +65,33 @@
 
 | 项 | 值 |
 |---|---|
-| 解释器 | `E:\小说2\精灵对战小游戏\.venv\Scripts\python.exe`（Python 3.12.14） |
-| 依赖 | 仅 `pyxel` 2.9.9 + Python 标准库。**不要 pip install 任何东西**（本机 pip 会挂死） |
+| 解释器 | Python 3.12.14（作者的开发环境版本） |
+| 依赖 | 仅 `pyxel` 2.9.9 + Python 标准库，见 [`requirements.txt`](requirements.txt) |
 | 画面 | 240 × 216，60 fps（已锁定） |
-| 操作系统 | Windows（中文渲染依赖 Windows 系统字体） |
+| 操作系统 | **Windows**（中文渲染依赖 Windows 系统字体，Mac / Linux 目前起不来，见 §8.3） |
+
+> 依赖只有一个包：`pyxel`。除此之外不需要任何第三方库，
+> `pip install -r requirements.txt` 之后就够用了。
 
 ## 2. 运行
 
-```powershell
-cd E:\小说2\精灵对战小游戏
-.\.venv\Scripts\python.exe main.py
+在仓库根目录：
+
+```bash
+python main.py
 ```
+
+> Windows 用户如果习惯用虚拟环境，可以先建一个再运行（仓库里的 `.venv/` 已被 `.gitignore` 忽略）：
+>
+> ```powershell
+> python -m venv .venv
+> .\.venv\Scripts\python.exe main.py
+> ```
 
 无窗口自检（不依赖显示器，用于 CI / 截图核对）：
 
-```powershell
-.\.venv\Scripts\python.exe main.py --headless --frames 10 --shot docs/shots/_check.png
+```bash
+python main.py --headless --frames 10 --shot docs/shots/_check.png
 ```
 
 > `docs/shots/_*.png` 已在 `.gitignore` 里，自检截图不会进版本库。
@@ -64,10 +117,11 @@ cd E:\小说2\精灵对战小游戏
 
 用标准库 `unittest`（**不是 pytest**，环境里没装，也别装）：
 
-```powershell
-cd E:\小说2\精灵对战小游戏
-.\.venv\Scripts\python.exe -m unittest discover -s tests -t .
+```bash
+python -m unittest discover -s tests -t .
 ```
+
+> Windows 用户用虚拟环境时：`.\.venv\Scripts\python.exe -m unittest discover -s tests -t .`
 
 ### ⚠️ PowerShell 下的假失败
 
@@ -82,20 +136,30 @@ OK
 想拿到干净的退出码，把 stderr 合进 stdout：
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -t . 2>&1 | Select-Object -Last 5
+python -m unittest discover -s tests -t . 2>&1 | Select-Object -Last 5
 ```
 
 ## 5. 目录结构
 
 ```
-精灵对战小游戏/
+pyxel-creature-battle/
 ├── main.py                          # 入口：pyxel.init / run，场景调度
 ├── README.md                        # 本文档（开发者向）
-├── assets/fonts/README.md           # 中文字体放这里（不放也能跑，见 §6.1）
+├── LICENSE                          # MIT 协议全文
+├── NOTICE                           # 第三方资源署名（Pyxel / 示例音频 / 字体说明）
+├── requirements.txt                 # 运行依赖：pyxel==2.9.9
+├── assets/
+│   ├── audio/                       # 2 段 BGM（Pyxel 官方示例音频，MIT，见 NOTICE）
+│   │   ├── README.md                # 这两个 ogg 的来源说明
+│   │   ├── bgm1.ogg
+│   │   └── bgm2.ogg
+│   └── fonts/
+│       └── README.md                # 中文字体放这里（不放也能跑，见 §6.1）
 ├── docs/
 │   ├── 游戏说明书.md                 # 玩家向操作说明
 │   ├── 数值设定.md                   # 全部数值的唯一权威来源
 │   ├── 里程碑核对.md                 # M0–M8 逐条核对结论
+│   ├── 01-规划开发文档.md            # 动工前的规划稿（未同步，见 §7）
 │   ├── 美术生图提示词.md             # AI 生图提示词（最终未采用，见 §8.3）
 │   └── shots/                       # 各批次截图归档
 ├── saves/                           # 存档目录（save1.json 已被 .gitignore 忽略）
@@ -220,10 +284,11 @@ pyxel.blt(x, y, img, 0, 0, 16, 16, colkey=0)
 - 音量：音效 `SFX_GAIN = 0.3`，BGM `BGM_GAIN = 0.6`。
 - `play_bgm(name)` 内部去重：同一个 BGM 重复请求只触发一次 `pyxel.play`。
 - 无音频设备 / 无头环境下 `init()` 只把音频标记成"不可用"，游戏照常跑。
+- 两段 BGM 的实际文件是 Pyxel 官方示例音频，来源与授权见 [NOTICE](NOTICE)。
 
 ## 7. 与规划文档的偏差
 
-`E:\小说2\01-规划开发文档.md` 是**动工前的规划稿**，里面的架构清单与实际实现有若干出入。
+**[`docs/01-规划开发文档.md`](docs/01-规划开发文档.md)** 是**动工前的规划稿**，里面的架构清单与实际实现有若干出入。
 代码是准的，文档没同步。逐条记录如下（详细核对见 [docs/里程碑核对.md](docs/里程碑核对.md)）：
 
 | # | 规划文档写的 | 实际实现 | 说明 |
@@ -263,7 +328,8 @@ Pyxel 2.9.9 的 Rust 内核在第二次 `pyxel.init()` 时会 panic（`Pyxel alr
 代价：风格偏简，8 只精灵的辨识度依赖颜色和轮廓差异。
 
 字体同理，没有随项目分发 `simhei.ttf`，靠系统字体回退。**换了没有黑体的机器会抛 `RuntimeError`**，
-届时把 `simhei.ttf` 放进 `assets/fonts/` 即可。
+届时把 `simhei.ttf` 放进 `assets/fonts/` 即可。这就是本项目
+**在 macOS / Linux 上跑不起来**的根本原因（字体授权见 [NOTICE](NOTICE)）。
 
 ### 8.4 音频只验证了接线，没验证听感
 
@@ -273,7 +339,8 @@ Pyxel 2.9.9 的 Rust 内核在第二次 `pyxel.init()` 时会 panic（`Pyxel alr
 ### 8.5 没有 30 分钟连续试玩记录
 
 规划文档 M8 的验收标准是「30 分钟流畅试玩无崩溃」。项目里**目前没有这份记录**——
-`saves/save1.json` 里能查到的时长是 `play_seconds: 30`（30 秒）。所以 M8 判"部分达成"。
+作者本地存档能查到的时长只有 `play_seconds: 30`（30 秒），而存档文件按 `.gitignore`
+不进版本库，所以这份证据在公开仓库里看不到。因此 M8 判"部分达成"。
 
 能拿出的替代证据是：553 个用例全绿、多轮无头长跑不崩溃、单帧耗时约 5 ms（16.67 ms 预算的 30%）。
 但这些**都不能代替真人在真窗口里连玩 30 分钟**。
@@ -298,3 +365,24 @@ Pyxel 2.9.9 的 Rust 内核在第二次 `pyxel.init()` 时会 panic（`Pyxel alr
 
 **O-1 是已知的手感痛点**：属性被抵抗时，Lv5 一次只能打掉很少血，要十来下才能结束一场。
 把它从 0 改成 2 能把回合数压到 6 下左右，但会让整体节奏变快。**尚未调整，等你试玩后的判断。**
+
+---
+
+## 致谢与第三方资源
+
+- **[Pyxel](https://github.com/kitao/pyxel)** —— MIT License，© Takashi Kitao。
+  本项目的图形、输入、音频输出全部由它提供。
+- **Pyxel 官方示例音频** `audio_bgm1.ogg` / `audio_bgm2.ogg` —— MIT License，随 Pyxel 一同发布。
+  仓库里的 `assets/audio/bgm1.ogg`、`bgm2.ogg` **就是这两个文件本身，与之逐字节完全相同**。
+- **字体**：本项目**不附带也不分发任何字体文件**，运行时调用操作系统自带字体（Windows 的 `simhei.ttf` 等）。
+  黑体属微软系统字体，**不随本项目分发**，请勿据此认为可以再分发。
+
+完整署名见 **[NOTICE](NOTICE)**，音频细节见 **[assets/audio/README.md](assets/audio/README.md)**。
+
+## 开源协议
+
+本项目采用 **MIT 协议**，协议全文见 **[LICENSE](LICENSE)**。
+
+```
+Copyright (c) 2026 SSDA56
+```

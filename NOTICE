@@ -1,0 +1,80 @@
+# NOTICE
+
+本文件说明「精灵对战小游戏」（仓库名 `pyxel-creature-battle`）所包含的第三方软件与资源，
+以及它们各自的授权条款。
+
+本项目自身代码采用 **MIT 协议**，见仓库根目录的 [LICENSE](LICENSE)。
+
+---
+
+## 1. Pyxel —— 游戏引擎
+
+- 名称：Pyxel
+- 作者：Takashi Kitao
+- 授权：MIT License
+- 来源：https://github.com/kitao/pyxel
+- 用途：本项目的全部图形、输入、音频输出均由 Pyxel 提供（`pyxel.init` / `pyxel.blt` /
+  `pyxel.play` 等）。
+
+## 2. Pyxel 官方示例音频 —— `assets/audio/bgm1.ogg` / `assets/audio/bgm2.ogg`
+
+- 来源：Pyxel 官方发行包内自带的示例音乐
+  `audio_bgm1.ogg` / `audio_bgm2.ogg`
+- 作者：Takashi Kitao
+- 授权：MIT License（随 Pyxel 一同发布）
+- 说明：本仓库中 `assets/audio/bgm1.ogg` 与 `assets/audio/bgm2.ogg` **就是上述两个官方示例文件的
+  原文件，与之逐字节完全相同**（SHA256 一致），仅重命名以便在代码中引用。
+- 详细说明见 [assets/audio/README.md](assets/audio/README.md)。
+
+## 3. 字体
+
+**本项目不附带、不分发任何字体文件。**
+
+- `assets/fonts/` 目录下只有一个说明用的 `README.md`，没有任何 `.ttf` / `.ttc` / `.bdf` 文件。
+- 游戏运行时的中文渲染依赖**操作系统自带的字体**，回退顺序为：
+  `assets/fonts/simhei.ttf` → `C:\Windows\Fonts\simhei.ttf` → `msyh.ttc` →
+  `Deng.ttf` → `simsun.ttc`。全部找不到时抛出 `RuntimeError`。
+- 黑体（SimHei / SimSun / 微软雅黑 / 等线）属于微软系统字体，**版权归微软所有，不随本项目分发**。
+  本项目仅在运行时"调用"操作系统字体，不对其做任何再分发。
+- 因此：**在没有中文字体的系统（如多数 Linux / macOS 环境）上本项目无法启动**，
+  这是一项已知且有意保留的限制，详见 README 的「已知限制」一节。
+- 如果你需要让项目在别的系统上运行，自行放置一份可合法使用的字体到 `assets/fonts/` 即可，
+  但该字体的分发授权由你自己负责。
+
+## 4. 像素美术 —— 本项目原创，无外部素材
+
+- `src/assets_gen/` 下的全部像素美术（12 种 16×16 图块、主角 4 方向 × 2 帧、
+  8 只精灵的战斗图 32×32 与图标 16×16、全局 16 色调色板）均为本项目**用字符画程序化生成**，
+  源码即素材。
+- 这些内容不包含任何第三方美术资源。
+
+## 5. 音频
+
+除第 2 节列出的两段 BGM 外，本项目的 **15 个音效全部由代码实时合成**
+（`src/ui/sound.py`，MML 音源序列器），不含任何第三方音频采样。
+
+---
+
+## 英文摘要 / English Summary
+
+This project is licensed under the MIT License (see `LICENSE`).
+
+Third-party components redistributed in this repository:
+
+| Component | Location | Author | License |
+|---|---|---|---|
+| Pyxel (game engine) | dependency, not vendored | Takashi Kitao | MIT |
+| `audio_bgm1.ogg` | `assets/audio/bgm1.ogg` | Takashi Kitao | MIT |
+| `audio_bgm2.ogg` | `assets/audio/bgm2.ogg` | Takashi Kitao | MIT |
+
+The two `.ogg` files are byte-for-byte copies of the sample music shipped with the
+official Pyxel distribution (MIT, © Takashi Kitao), renamed only for convenience.
+
+**No font files are distributed with this project.** Chinese text is rendered with
+fonts provided by the operating system (on Windows: `simhei.ttf` and other system
+fonts). Those fonts are proprietary to Microsoft and are neither included nor
+redistributed here. On systems without a CJK system font the game raises a
+`RuntimeError` at startup — this is a known limitation.
+
+All pixel art under `src/assets_gen/` is procedurally generated from character-art
+source files written for this project; the source code is the asset source.
