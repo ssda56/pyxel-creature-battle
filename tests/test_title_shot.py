@@ -58,9 +58,12 @@ class TitleSceneBehaviourTest(unittest.TestCase):
         self.assertEqual(self.scene.index, len(MENU_ITEMS) - 1)
 
     def test_confirm_does_not_crash(self):
+        """批 1 起：「新游戏」确认键会进入 FieldScene（原来只是占位打印）。"""
+        from src.scenes.field_scene import FieldScene
+
         self.game.input = FakeInput(script=[{"confirm": 1}])
         self.game.update()
-        self.assertIs(self.game.scenes.current, self.scene)
+        self.assertIsInstance(self.game.scenes.current, FieldScene)
 
     def test_draw_runs_without_error(self):
         self.game.input = FakeInput()

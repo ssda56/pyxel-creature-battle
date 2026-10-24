@@ -10,7 +10,8 @@
 光标用 `pyxel.tri()` 画的小三角形而不是 "▶" 字符，
 因为字体里的 ▶ 字形不保证存在（《数值设定.md》§13.2 允许这两种做法）。
 
-本批**不跳转** FieldScene（由 T2 实现）：按确认键只打印一行日志。
+「新游戏」按确认键 -> 进入 FieldScene（地图 1 新手村）；
+「继续游戏」本批仍只打印一行日志（读档由 T5 实现）。
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from __future__ import annotations
 import pyxel
 
 from src.assets_gen import palette
+from src.data import map_data
+from src.scenes.field_scene import FieldScene
 from src.scenes.scene_base import Scene
 from src.ui import text
 
@@ -49,16 +52,21 @@ class TitleScene(Scene):
 
     # ------------------------------------------------------------ 每帧
     def update(self, inp) -> None:
-        """上下键移动光标，确认键打印日志（本批不跳转场景）。"""
+        """上下键移动光标，确认键执行对应菜单项。"""
         if inp.pressed("up"):
             self.index = (self.index - 1) % len(MENU_ITEMS)
         if inp.pressed("down"):
             self.index = (self.index + 1) % len(MENU_ITEMS)
         if inp.pressed("confirm"):
-            print(
-                f"[TitleScene] 选择：{MENU_ITEMS[self.index]}（FieldScene 由 T2 实现，本批不跳转）",
-                flush=True,
-            )
+            item = MENU_ITEMS[self.index]
+            if self.index == 0:
+                # 新游戏：直接进地图探索（起始地图 1 新手村）
+                self.game.scenes.replace(
+                    FieldScene(self.game), map_id=map_data.START_MAP_ID
+                )
+            else:
+                # 继续游戏：读档由 T5 实现
+                print(f"[TitleScene] 选择：{item}（读档由 T5 实现，本批只打印）", flush=True)
 
     def draw(self) -> None:
         """绘制标题画面。"""

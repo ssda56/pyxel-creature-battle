@@ -17,6 +17,7 @@ from __future__ import annotations
 from src.assets_gen import sprite_base
 from src.core.input import Input, RealInput
 from src.core.scene_manager import SceneManager
+from src.data import map_data
 from src.scenes.title_scene import TitleScene
 from src.ui import text
 
@@ -33,8 +34,16 @@ class Game:
         self.input: Input = input if input is not None else RealInput()
         #: 场景栈
         self.scenes = SceneManager()
-        #: 玩家状态占位，后续批次扩展
-        self.player_state: dict = {}
+        #: 玩家状态（存档 / HUD 读它；后续批次继续扩字段）
+        # 初始金币 300（《数值设定.md》§7.1），起始地图 1 新手村
+        # （出生点 15, 10，与 §11 存档格式里的 player 字段一致）。
+        self.player_state: dict = {
+            "dollars": 300,
+            "map_id": map_data.START_MAP_ID,
+            "x": 15,
+            "y": 10,
+            "facing": "down",
+        }
 
         self.scenes.push(TitleScene(self))
 
