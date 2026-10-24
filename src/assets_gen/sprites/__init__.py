@@ -3,8 +3,8 @@
 每个素材模块都必须导出 SPRITES: list[SpriteMatrix]，
 由 sprite_base.bake_all() 统一烘焙。
 """
-from src.assets_gen.sprites import creature_placeholder, player, tileset
+from src.assets_gen.sprites import creatures, player, tileset
 
-ALL_SPRITES: list = list(tileset.SPRITES) + list(player.SPRITES) + list(creature_placeholder.SPRITES)
+ALL_SPRITES: list = list(tileset.SPRITES) + list(player.SPRITES) + list(creatures.SPRITES)
 
-__all__ = ["ALL_SPRITES", "tileset", "player", "creature_placeholder"]
+__all__ = ["ALL_SPRITES", "tileset", "player", "creatures"]

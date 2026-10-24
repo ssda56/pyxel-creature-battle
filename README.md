@@ -72,7 +72,7 @@ E:\小说2\精灵对战小游戏\.venv\Scripts\python.exe -m unittest discover -
 │       └── sprites/
 │           ├── tileset.py               # 10 种 16x16 图块
 │           ├── player.py                # 主角 4 方向 x 2 帧
-│           └── creature_placeholder.py  # 8 只精灵占位图（战斗 32x32 + 图标 16x16）
+│           └── creatures.py             # 8 只精灵成品字符画（战斗 32x32 + 图标 16x16）
 └── tests/                     # 共 114 个用例（标准库 unittest）
     ├── helpers.py               # 无窗口跑帧 / 截图 / 假输入工具
     ├── field_helpers.py         # FieldScene 专用测试辅助

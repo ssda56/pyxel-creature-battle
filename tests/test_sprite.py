@@ -4,7 +4,7 @@ import unittest
 
 from src.assets_gen import sprite_base
 from src.assets_gen.sprite_base import Canvas, SpriteMatrix
-from src.assets_gen.sprites import ALL_SPRITES, creature_placeholder, player, tileset
+from src.assets_gen.sprites import ALL_SPRITES, creatures, player, tileset
 from tests import helpers
 
 
@@ -23,11 +23,11 @@ class BakeSizeTest(unittest.TestCase):
         self.assertEqual((img.width, img.height), (16, 16))
 
     def test_creature_battle_is_32x32(self):
-        img = sprite_base.bake(creature_placeholder.CREATURE_BATTLE[1])
+        img = sprite_base.bake(creatures.CREATURE_BATTLE[1])
         self.assertEqual((img.width, img.height), (32, 32))
 
     def test_creature_icon_is_16x16(self):
-        img = sprite_base.bake(creature_placeholder.CREATURE_ICON[1])
+        img = sprite_base.bake(creatures.CREATURE_ICON[1])
         self.assertEqual((img.width, img.height), (16, 16))
 
     def test_every_sprite_bakes_to_its_own_size(self):
