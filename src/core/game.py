@@ -44,6 +44,10 @@ class Game:
     LOG_EVERY = 10
     #: 自己维护的帧计数（headless 手动循环时 pyxel.frame_count 不推进）
     _frame_no = 0
+    #: 上一帧的焦点状态（None = 还没测过）
+    _last_focus: bool | None = None
+    #: 上次尝试抢焦点的帧号
+    _last_refocus: int = -1000
 
     def __init__(self, input: Input | None = None):
         # 字体与素材必须先准备好，后面任何一帧绘制都要用
@@ -104,7 +108,29 @@ class Game:
                 raise
         self.input.update()
         self._frame_no += 1
+        self._watch_focus()
         self._log_tick(scene)
+
+    def _watch_focus(self) -> None:
+        """监控窗口焦点：记录丢失事件，并在诊断模式下自动抢回。
+
+        窗口一旦不是前台窗口，SDL 就收不到键盘事件——画面照常、人物不走。
+        诊断模式（`RealInput.DEBUG`）下每 2 秒尝试抢回一次。
+        """
+        if not RealInput.DEBUG:
+            return
+        now = focus.is_focused()
+        if self._last_focus is None:
+            self._last_focus = now
+            self._log(f"FOCUS_INIT={int(now)}")
+            return
+        if now != self._last_focus:
+            self._log(f"FOCUS {'GAINED' if now else 'LOST'} at f={self._frame_no}")
+            self._last_focus = now
+        if not now and self._frame_no - self._last_refocus >= 60:
+            self._last_refocus = self._frame_no
+            ok = focus.grab_focus()
+            self._log(f"REFOCUS_TRY f={self._frame_no} ok={int(ok)}")
 
     def draw(self) -> None:
         """分发一帧绘制。"""
