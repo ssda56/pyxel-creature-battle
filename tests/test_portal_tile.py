@@ -2,7 +2,7 @@
 
 出口从「普通道路」改成「传送阵图标」：
 
-- 图块 10（传送阵）已经画进 tileset，尺寸 16x16；
+- 图块 10（传送阵）与图块 11（洞窟地面）已经画进 tileset，尺寸 16x16；
 - map1 的 (28,10) 与 map2 的 (1,15) 两个出入口格的图块值 == 10；
 - 传送阵**必须可走**（不然玩家走不上去）；
 - 图块本身没有透明像素、不使用索引 0（和其它图块一样的硬性约定）。
@@ -59,8 +59,8 @@ class PortalTileSpriteTest(unittest.TestCase):
         self.assertEqual((sprite.width, sprite.height), (16, 16))
 
     def test_tile_ids_are_contiguous(self):
-        """图块 ID 0..10 必须连续（TILES_BY_ID 按 SPRITES 下标生成）。"""
-        self.assertEqual(sorted(tileset.TILES_BY_ID), list(range(11)))
+        """图块 ID 0..11 必须连续（TILES_BY_ID 按 SPRITES 下标生成）。"""
+        self.assertEqual(sorted(tileset.TILES_BY_ID), list(range(12)))
 
     def test_portal_has_no_transparent_pixels(self):
         """图块满铺不透明：不能有 '.'（透明）像素。"""

@@ -1,4 +1,4 @@
-"""地图图块集：11 种 16x16 图块（批 4 重绘 · 方案 D）。
+"""地图图块集：12 种 16x16 图块（批 4 重绘 · 方案 D，批 6 新增洞窟地面）。
 
 key 与《数值设定.md》§10.2 的图块 ID 一一对应：
 
@@ -13,6 +13,7 @@ key 与《数值设定.md》§10.2 的图块 ID 一一对应：
     tile_8_highland  高地     可走
     tile_9_flower    花丛     可走（装饰）
     tile_10_portal  传送阵   可走（地图出入口）
+    tile_11_cavefloor 洞窟地面 可走（洞窟通道地面）
 
 画法
 ----
@@ -61,6 +62,7 @@ PALETTE: dict[str, int] = {
     "Y": 10,     # 黄     门把手 / 花芯
     "R": 8,      # 红     红花
     "c": 1,      # 深蓝 DEEP_BLUE：门洞 / 岩壁暗部
+    "s": 1,      # 深蓝 DEEP_BLUE：洞窟地面底色（比岩壁暗得多，一眼可分）
 }
 
 # ======================================================================
@@ -387,6 +389,39 @@ TILE_10_PORTAL = SpriteMatrix(
     PALETTE,
 )
 
+# ======================================================================
+# tile_11_cavefloor —— 洞窟地面（可走）★ 批 6 新增
+# 用色索引：s=1 深蓝底（洞窟地面的暗色基调）/ D=13 棕色砂砾 / d=6 灰色小石子
+# 为什么用**深蓝**而不是棕色：岩壁（tile_7_rock）主体是**浅灰**（色 6 = 0x8A8A96），
+#   如果地面也用中明度的棕，两块挨在一起会糊成一片；
+#   地面压成很暗的深蓝（色 1 = 0x16213E）之后，「暗地面 / 亮岩壁」的明度差拉满，
+#   一眼就能分出哪里能走、哪里是墙（洞窟也更像在洞里）。
+# 平铺：砂砾与石子都是逐像素散布，不做居中图案，相邻格纹理不重复。
+# 可走性：整块是平的地面图案，没有任何实心障碍剪影。
+# ======================================================================
+TILE_11_CAVEFLOOR = SpriteMatrix(
+    "tile_11_cavefloor",
+    [
+        "sssssssDsssdssDs",
+        "sDssssddssssssss",
+        "sssDssdssDssssds",
+        "Dsssssssssssssss",
+        "ssssssssDssDssss",
+        "DssdssssssssssDs",
+        "sDsssDssssDsssds",
+        "sssssssssssssssD",
+        "sDdsssDsssssssss",
+        "Dsssssssssssssds",
+        "sssssssssDssssss",
+        "sDsDsssssssDssss",
+        "sssssssssssssDss",
+        "sssDssssssssssss",
+        "sssssssDssssssss",
+        "ssDssDssssssdsss",
+    ],
+    PALETTE,
+)
+
 #: 全部图块（烘焙顺序 = 绘制顺序，也是 §10.2 的 ID 顺序）
 SPRITES: list[SpriteMatrix] = [
     TILE_0_GRASS,
@@ -400,6 +435,7 @@ SPRITES: list[SpriteMatrix] = [
     TILE_8_HIGHLAND,
     TILE_9_FLOWER,
     TILE_10_PORTAL,
+    TILE_11_CAVEFLOOR,
 ]
 
 #: 图块 ID（§10.2）-> SpriteMatrix

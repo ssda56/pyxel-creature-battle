@@ -2,7 +2,7 @@
 
 覆盖《数值设定.md》§10.1 / §10.2：
 - 地图尺寸与声明一致、每行长度 == w；
-- 每格图块 ID ∈ 0..10；
+- 每格图块 ID ∈ 0..11；
 - 出生点可走、边界一圈不可走；
 - map1 / map2 的 portal 互指有效（目标格存在且可走）；
 - NPC 站立的格子可走，且从出生点能走到。
@@ -39,6 +39,7 @@ class MapSizeTest(unittest.TestCase):
     def test_maps_exist(self):
         self.assertIn(1, map_data.MAPS)
         self.assertIn(2, map_data.MAPS)
+        self.assertIn(3, map_data.MAPS)
 
     def test_declared_size_matches_tiles(self):
         for map_id, m in map_data.MAPS.items():
@@ -47,26 +48,28 @@ class MapSizeTest(unittest.TestCase):
                 self.assertEqual(len(row), m["w"], f"地图 {map_id} 第 {y} 行长度与 w 不一致")
 
     def test_documented_sizes(self):
-        """《数值设定.md》§10.1：新手村 30x20、野外 40x30。"""
+        """《数值设定.md》§10.1：新手村 30x20、野外 40x30、洞窟 36x28。"""
         self.assertEqual((map_data.MAPS[1]["w"], map_data.MAPS[1]["h"]), (30, 20))
         self.assertEqual((map_data.MAPS[2]["w"], map_data.MAPS[2]["h"]), (40, 30))
+        self.assertEqual((map_data.MAPS[3]["w"], map_data.MAPS[3]["h"]), (36, 28))
 
     def test_tile_ids_are_in_range(self):
         for map_id, m in map_data.MAPS.items():
             for y, row in enumerate(m["tiles"]):
                 for x, value in enumerate(row):
-                    self.assertTrue(0 <= value <= 10,
-                                    f"地图 {map_id} ({x},{y}) 的图块 {value} 不在 0..10")
+                    self.assertTrue(0 <= value <= 11,
+                                    f"地图 {map_id} ({x},{y}) 的图块 {value} 不在 0..11")
 
     def test_walkable_and_blocked_partition_tile_ids(self):
-        self.assertEqual(map_data.WALKABLE_TILES, {0, 1, 4, 6, 8, 9, 10})
+        self.assertEqual(map_data.WALKABLE_TILES, {0, 1, 4, 6, 8, 9, 10, 11})
         self.assertEqual(map_data.BLOCKED_TILES, {2, 3, 5, 7})
         self.assertEqual(map_data.WALKABLE_TILES & map_data.BLOCKED_TILES, set())
-        self.assertEqual(map_data.WALKABLE_TILES | map_data.BLOCKED_TILES, set(range(11)))
+        self.assertEqual(map_data.WALKABLE_TILES | map_data.BLOCKED_TILES, set(range(12)))
 
     def test_map_names(self):
         self.assertEqual(map_data.MAPS[1]["name"], "新手村")
         self.assertEqual(map_data.MAPS[2]["name"], "野外")
+        self.assertEqual(map_data.MAPS[3]["name"], "洞窟")
 
 
 class MapContentTest(unittest.TestCase):
@@ -172,6 +175,7 @@ class HelperTest(unittest.TestCase):
     def test_map_pixel_size(self):
         self.assertEqual(map_data.map_pixel_size(1), (480, 320))
         self.assertEqual(map_data.map_pixel_size(2), (640, 480))
+        self.assertEqual(map_data.map_pixel_size(3), (576, 448))
 
     def test_is_walkable_matches_tiles(self):
         for map_id, m in map_data.MAPS.items():

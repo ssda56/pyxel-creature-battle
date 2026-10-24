@@ -668,7 +668,8 @@ class FieldScene(Scene):
         if enc is None:
             return None
         rng = wild_rng_of(self.game)
-        rolled = map_data.roll_wild(self.map_id, rng)
+        # 按点位选种族：洞窟最深处只刷不死鸟，普通区刷不出不死鸟
+        rolled = map_data.roll_wild(self.map_id, rng, point)
         if rolled is None:
             return None
         species_id, level = rolled
@@ -736,7 +737,8 @@ class FieldScene(Scene):
                 continue                      # 不和别的精灵重叠
             if (px, py) == player_cell:
                 continue                      # 不刷在玩家所在格
-            rolled = map_data.roll_wild(map_id, rng)
+            # 按点位选种族：深处点位只刷不死鸟，普通点位刷不出不死鸟
+            rolled = map_data.roll_wild(map_id, rng, (px, py))
             if rolled is None:
                 return
             species_id, level = rolled
