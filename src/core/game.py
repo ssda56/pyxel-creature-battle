@@ -14,6 +14,9 @@
 
 from __future__ import annotations
 
+import os
+import traceback
+
 import pyxel
 
 from src.assets_gen import sprite_base
@@ -24,8 +27,22 @@ from src.scenes.title_scene import TitleScene
 from src.ui import text
 
 
+#: 运行日志路径（项目根/_runtime_log.txt）；`--debug-input` 时启用
+_LOG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "_runtime_log.txt",
+)
+
+
 class Game:
     """游戏主对象。"""
+
+    #: 运行日志文件句柄（None 表示未启用）
+    _log_file = None
+    #: 日志采样间隔（帧）
+    LOG_EVERY = 10
+    #: 自己维护的帧计数（headless 手动循环时 pyxel.frame_count 不推进）
+    _frame_no = 0
 
     def __init__(self, input: Input | None = None):
         # 字体与素材必须先准备好，后面任何一帧绘制都要用
@@ -47,7 +64,25 @@ class Game:
             "facing": "down",
         }
 
+        if RealInput.DEBUG:
+            try:
+                self._log_file = open(_LOG_PATH, "w", encoding="utf-8")
+                self._log("=== 运行日志开始 ===")
+            except OSError:
+                self._log_file = None
+
         self.scenes.push(TitleScene(self))
+
+    # ------------------------------------------------------------ 运行日志
+    def _log(self, text: str) -> None:
+        """写一行运行日志并立刻落盘（进程被杀也能留下）。"""
+        if self._log_file is None:
+            return
+        try:
+            self._log_file.write(text + "\n")
+            self._log_file.flush()
+        except OSError:
+            self._log_file = None
 
     # ------------------------------------------------------------ 每帧
     def update(self) -> None:
@@ -58,8 +93,17 @@ class Game:
         """
         scene = self.scenes.current
         if scene is not None:
-            scene.update(self.input)
+            try:
+                scene.update(self.input)
+            except Exception:
+                # 把异常写进日志再抛出：PyCharm 控制台的输出可能看不到，
+                # 但日志文件一定留下完整 traceback。
+                self._log(f"!!! 场景 update 抛异常 (scene={type(scene).__name__})")
+                self._log(traceback.format_exc())
+                raise
         self.input.update()
+        self._frame_no += 1
+        self._log_tick(scene)
 
     def draw(self) -> None:
         """分发一帧绘制。"""
@@ -68,6 +112,26 @@ class Game:
             scene.draw()
         if RealInput.DEBUG:
             self._draw_debug_overlay()
+
+    def _log_tick(self, scene) -> None:
+        """每 LOG_EVERY 帧记录一次运行状态。"""
+        if self._log_file is None or self._frame_no % self.LOG_EVERY:
+            return
+        held = [a for a in ACTIONS if self.input.held(a)]
+        seen = getattr(self.input, "seen_count", "-")
+        parts = [
+            f"f={self._frame_no}",
+            f"scn={type(scene).__name__ if scene else 'None'}",
+            f"seen={seen}",
+            f"held={','.join(held) or '-'}",
+        ]
+        for attr in ("facing", "moving", "gx", "gy"):
+            if scene is not None and hasattr(scene, attr):
+                parts.append(f"{attr}={getattr(scene, attr)}")
+        fade = getattr(scene, "fade", None) if scene is not None else None
+        if fade is not None:
+            parts.append(f"fade={int(fade.is_active)}|{fade.level}")
+        self._log(" ".join(parts))
 
     # ------------------------------------------------------------ 诊断
     def _draw_debug_overlay(self) -> None:
