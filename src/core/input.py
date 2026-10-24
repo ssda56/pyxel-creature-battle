@@ -12,10 +12,10 @@
 ======== ========== ==========================================
 动作     按键        说明
 ======== ========== ==========================================
-up       ↑          方向键
-down     ↓
-left     ←
-right    →
+up       W / ↑      两种都支持
+down     S / ↓
+left     A / ←
+right    D / →
 confirm  Z / K / Enter   （pyxel.KEY_RETURN 即回车）
 cancel   X / J / Backspace
 menu     C
@@ -34,10 +34,10 @@ ACTIONS: tuple[str, ...] = ("up", "down", "left", "right", "confirm", "cancel", 
 
 #: 动作 -> 物理按键码
 KEY_MAP: dict[str, tuple[int, ...]] = {
-    "up": (pyxel.KEY_UP,),
-    "down": (pyxel.KEY_DOWN,),
-    "left": (pyxel.KEY_LEFT,),
-    "right": (pyxel.KEY_RIGHT,),
+    "up": (pyxel.KEY_UP, pyxel.KEY_W),
+    "down": (pyxel.KEY_DOWN, pyxel.KEY_S),
+    "left": (pyxel.KEY_LEFT, pyxel.KEY_A),
+    "right": (pyxel.KEY_RIGHT, pyxel.KEY_D),
     "confirm": (pyxel.KEY_Z, pyxel.KEY_K, pyxel.KEY_RETURN),
     "cancel": (pyxel.KEY_X, pyxel.KEY_J, pyxel.KEY_BACKSPACE),
     "menu": (pyxel.KEY_C,),
@@ -77,7 +77,26 @@ class Input:
 
 
 class RealInput(Input):
-    """真实键盘输入。"""
+    """真实键盘输入。
+
+    `RealInput.DEBUG = True`（或 `main.py --debug-input`）时，每帧把「按住的
+    动作集合」与上一帧比较，发生变化就打印一行。用来区分「按键根本没被 Pyxel
+    收到（窗口没焦点 / 环境问题）」与「收到了但游戏逻辑没响应（代码问题）」。
+    """
+
+    #: 打开后每帧打印按键状态变化（诊断用）
+    DEBUG = False
+
+    def __init__(self) -> None:
+        self._dbg_last: frozenset[str] = frozenset()
+
+    def update(self) -> None:
+        if not RealInput.DEBUG:
+            return
+        current = frozenset(a for a in ACTIONS if self.held(a))
+        if current != self._dbg_last:
+            print(f"[input] frame={pyxel.frame_count} held={sorted(current)}")
+            self._dbg_last = current
 
     def held(self, action: str) -> bool:
         return any(pyxel.btn(k) for k in keys_of(action))
