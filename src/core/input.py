@@ -90,6 +90,11 @@ class RealInput(Input):
 
     def __init__(self) -> None:
         self._dbg_last: frozenset[str] = frozenset()
+        #: 上一帧 / 本帧由 pyxel.input_keys 读到的原始键码（btn() 失效时的备用通道）
+        self._prev_keys: frozenset[int] = frozenset()
+        self._cur_keys: frozenset[int] = frozenset()
+        #: 本帧 input_keys 的原始长度（诊断用）
+        self.raw_key_count: int = 0
         #: 启动至今累计收到过多少次「新按下」的动作（松手后不会清零）
         self.seen_count: int = 0
         #: 最近一次收到的动作名
@@ -97,7 +102,18 @@ class RealInput(Input):
         #: 最近一次收到动作时的 pyxel 帧号
         self.last_frame: int = -1
 
+    @staticmethod
+    def _read_raw_keys() -> frozenset[int]:
+        """读 pyxel.input_keys（本帧原始键码）。失败返回空集合。"""
+        try:
+            return frozenset(int(k) for k in pyxel.input_keys)
+        except Exception:
+            return frozenset()
+
     def update(self) -> None:
+        self._prev_keys = self._cur_keys
+        self._cur_keys = self._read_raw_keys()
+        self.raw_key_count = len(self._cur_keys)
         current = frozenset(a for a in ACTIONS if self.held(a))
         fresh = current - self._dbg_last
         if fresh:
@@ -109,10 +125,22 @@ class RealInput(Input):
         self._dbg_last = current
 
     def held(self, action: str) -> bool:
-        return any(pyxel.btn(k) for k in keys_of(action))
+        """动作是否按住。
+
+        主通道 `pyxel.btn()`；若它失效（SDL 有焦点但收不到键，实测出现过），
+        退回 `pyxel.input_keys` 这条原始键码通道。
+        """
+        keys = keys_of(action)
+        if any(pyxel.btn(k) for k in keys):
+            return True
+        return any(k in self._cur_keys for k in keys)
 
     def pressed(self, action: str) -> bool:
-        return any(pyxel.btnp(k) for k in keys_of(action))
+        """动作是否本帧刚按下（边沿）。同样有 `input_keys` 备用通道。"""
+        keys = keys_of(action)
+        if any(pyxel.btnp(k) for k in keys):
+            return True
+        return any(k in self._cur_keys and k not in self._prev_keys for k in keys)
 
 
 class _Segment:

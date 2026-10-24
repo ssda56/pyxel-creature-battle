@@ -159,6 +159,7 @@ class Game:
         if fade is not None:
             parts.append(f"fade={int(fade.is_active)}|{fade.level}")
         parts.append(f"focus={int(focus.is_focused())}")
+        parts.append(f"raw={getattr(self.input, 'raw_key_count', '-')}")
         self._log(" ".join(parts))
 
     # ------------------------------------------------------------ 诊断
@@ -179,7 +180,9 @@ class Game:
         if isinstance(self.input, RealInput):
             last = self.input.last_action or "-"
             rows.append(f"seen={self.input.seen_count} last={last}@{self.input.last_frame}")
-        rows.append(f"focus={int(focus.is_focused())}")
+        rows.append(
+            f"focus={int(focus.is_focused())} raw={getattr(self.input, 'raw_key_count', '-')}"
+        )
         head = []
         for attr in ("facing", "moving"):
             if cur is not None and hasattr(cur, attr):
