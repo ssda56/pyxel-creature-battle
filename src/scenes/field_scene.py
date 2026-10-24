@@ -7,7 +7,7 @@
 - 碰撞：目标格在 BLOCKED_TILES 或越界则不动（但朝向仍然改变）；
 - 摄像机：玩家居中并夹在地图边界内，地图比视口小则整体居中；
 - HUD：左上角「金币 N」（色 10 黄）+ 右上角地图名；
-- NPC 对话：面向相邻格的 NPC 按确认键，底部对话框逐句显示；
+- NPC 对话：**上下左右 4 格内**的 NPC 按确认键，底部对话框逐句显示；
 - Portal：踩到出入口格 -> 淡出 -> 换地图 -> 淡入；
 - menu 键：**压栈**打开菜单（MenuScene），关掉后地图状态原样保留。
 
@@ -73,6 +73,20 @@ DIRECTIONS: dict[str, tuple[int, int]] = {
 
 #: 方向键的检查优先级（同时按住多个键时用这个顺序）
 DIR_ORDER: tuple[str, ...] = ("up", "down", "left", "right")
+
+#: NPC 交互距离（格）：**上下左右四条轴**上 1~4 格内都可以直接对话。
+#: 以前只认「面朝方向的紧邻 1 格」，玩家必须精确站到 NPC 正对面才对话得到，
+#: 体验很差（用户抱怨「比较难交互」）。放宽到 4 格后靠近就能聊。
+NPC_TALK_RANGE = 4
+
+#: NPC 搜索方向与**同距离时的优先级**（上 → 下 → 左 → 右）。
+#: 每项是 (方向名, dx, dy)；距离用 max(|dx|, |dy|) 算，斜向不算。
+TALK_DIRECTIONS: tuple[tuple[str, int, int], ...] = (
+    ("up", 0, -1),
+    ("down", 0, 1),
+    ("left", -1, 0),
+    ("right", 1, 0),
+)
 
 
 # ------------------------------------------------------------ 明雷遇敌（§10.3）
@@ -330,9 +344,9 @@ class FieldScene(Scene):
             self._update_dialogue(inp)
             return
 
-        # 面向 NPC 按确认键 -> 打开对话
+        # 附近 NPC（上下左右 4 格内，**不要求朝向**）按确认键 -> 打开对话
         if inp.pressed("confirm"):
-            npc = self.npc_in_front()
+            npc = self.nearby_npc()
             if npc is not None:
                 self.open_dialogue(npc)
                 return
@@ -434,6 +448,53 @@ class FieldScene(Scene):
             if npc["x"] == nx and npc["y"] == ny:
                 return npc
         return None
+
+    def nearby_npc(self) -> dict | None:
+        """上下左右四条轴上、距离 1~NPC_TALK_RANGE 格内**最近**的 NPC。
+
+        规则
+        ----
+        - 只认上下左右四条轴（**斜向不算**）；
+        - 距离 = max(|dx|, |dy|)，必须在 1 ~ NPC_TALK_RANGE 之间；
+        - 距离相同时按 **上 → 下 → 左 → 右** 的优先级取第一个。
+
+        没有符合条件的 NPC 时返回 None。
+        """
+        best = None
+        best_key = None
+        for npc in self.map["npcs"]:
+            dx = int(npc["x"]) - self.gx
+            dy = int(npc["y"]) - self.gy
+            if dx == 0 and dy == 0:
+                continue                      # 玩家自己站的那格
+            if dx != 0 and dy != 0:
+                continue                      # 斜向不算
+            dist = max(abs(dx), abs(dy))
+            if dist > NPC_TALK_RANGE:
+                continue
+            prio = 0
+            for i, (_name, sx, sy) in enumerate(TALK_DIRECTIONS):
+                if dx == sx * dist and dy == sy * dist:
+                    prio = i
+                    break
+            key = (dist, prio)
+            if best_key is None or key < best_key:
+                best_key = key
+                best = npc
+        return best
+
+    def npc_hint(self) -> str | None:
+        """靠近 NPC 时右下角的一行提示；没有 NPC 时返回 None。
+
+        提示内容形如「Z 与 护士 交谈」——把「谁能聊」和「按哪个键」都写清楚，
+        这是「难交互」投诉的另一半解法（光放宽距离还不够，玩家得知道能聊）。
+        """
+        if self.dialogue is not None or self.heal_timer > 0:
+            return None                       # 对话 / 治疗演出中不提示
+        npc = self.nearby_npc()
+        if npc is None:
+            return None
+        return f"Z 与 {npc.get('name', 'NPC')} 交谈"
 
     def open_dialogue(self, npc: dict) -> None:
         """打开 NPC 对话框（同时停下移动）。"""
@@ -820,6 +881,7 @@ class FieldScene(Scene):
         self._draw_npcs()
         self._draw_player()
         self._draw_hud()
+        self._draw_npc_hint()
         if self.dialogue is not None:
             self._draw_dialogue()
         self._draw_heal_fx()
@@ -973,6 +1035,17 @@ class FieldScene(Scene):
         nw = text.width(name)
         pyxel.rect(SCREEN_W - nw - 8, 0, nw + 8, 16, palette.DEEP_BLUE)
         text.draw(SCREEN_W - nw - 4, 2, name, palette.WHITE)
+
+    def _draw_npc_hint(self) -> None:
+        """右下角提示：靠近 NPC 时显示「Z 与 XX 交谈」（色 10 黄）。"""
+        hint = self.npc_hint()
+        if hint is None:
+            return
+        w = text.width(hint)
+        x = SCREEN_W - w - 6
+        y = SCREEN_H - 18
+        pyxel.rect(x - 4, y - 3, w + 8, 16, palette.DEEP_BLUE)
+        text.draw(x, y, hint, palette.YELLOW)
 
     def _draw_dialogue(self) -> None:
         """底部对话框：白底黑字，2 行 19 字（《数值设定.md》§13.4）。"""

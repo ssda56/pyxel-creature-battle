@@ -1,8 +1,8 @@
 """输入抽象层。
 
-游戏逻辑只认 7 个**动作**，不认具体物理按键：
+游戏逻辑只认 8 个**动作**，不认具体物理按键：
 
-    up / down / left / right / confirm / cancel / menu
+    up / down / left / right / confirm / cancel / menu / quit
 
 - `RealInput`：读真实键盘（pyxel.btn / pyxel.btnp）。
 - `FakeInput`：按脚本注入，测试用。
@@ -19,10 +19,13 @@ right    D / →
 confirm  Z / K / Enter   （pyxel.KEY_RETURN 即回车）
 cancel   X / J / Backspace
 menu     C
+quit     Esc            退出确认（弹「存档并退出 / 直接退出 / 取消」）
 ======== ========== ==========================================
 
-**Esc 不作为功能键**：Esc 是 Pyxel 默认退出键（quit_key 默认 KEY_ESCAPE），
-本项目保持默认，用户按 Esc 直接退出游戏。
+**Esc 的处理（批 5 / T10 改过）**：以前 Esc 是 Pyxel 默认退出键
+（quit_key 默认 KEY_ESCAPE），按一下玩家就没了。现在 `main.py` 里
+`pyxel.init(..., quit_key=pyxel.KEY_NONE)` 关掉了 Pyxel 自带的退出键，
+Esc 改由 `Game` 接管：按 Esc 弹出**退出确认弹窗**（可存档后退出）。
 """
 
 from __future__ import annotations
@@ -30,7 +33,8 @@ from __future__ import annotations
 import pyxel
 
 #: 全部动作名，顺序固定
-ACTIONS: tuple[str, ...] = ("up", "down", "left", "right", "confirm", "cancel", "menu")
+ACTIONS: tuple[str, ...] = ("up", "down", "left", "right", "confirm", "cancel",
+                           "menu", "quit")
 
 #: 动作 -> 物理按键码
 KEY_MAP: dict[str, tuple[int, ...]] = {
@@ -41,6 +45,7 @@ KEY_MAP: dict[str, tuple[int, ...]] = {
     "confirm": (pyxel.KEY_Z, pyxel.KEY_K, pyxel.KEY_RETURN),
     "cancel": (pyxel.KEY_X, pyxel.KEY_J, pyxel.KEY_BACKSPACE),
     "menu": (pyxel.KEY_C,),
+    "quit": (pyxel.KEY_ESCAPE,),
 }
 
 

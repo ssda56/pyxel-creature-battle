@@ -1,4 +1,4 @@
-"""地图图块集：10 种 16x16 图块（批 4 重绘 · 方案 D）。
+"""地图图块集：11 种 16x16 图块（批 4 重绘 · 方案 D）。
 
 key 与《数值设定.md》§10.2 的图块 ID 一一对应：
 
@@ -12,6 +12,7 @@ key 与《数值设定.md》§10.2 的图块 ID 一一对应：
     tile_7_rock      岩壁     障碍
     tile_8_highland  高地     可走
     tile_9_flower    花丛     可走（装饰）
+    tile_10_portal  传送阵   可走（地图出入口）
 
 画法
 ----
@@ -347,6 +348,45 @@ TILE_9_FLOWER = SpriteMatrix(
     PALETTE,
 )
 
+# ======================================================================
+# tile_10_portal —— 传送阵（可走 · 地图出入口）★ 批 5 新增
+# 用色索引：O=9 / D=13 道路底（与 tile_4_road 同款，踩在路上不突兀）
+#            B=12 浅蓝光环 / W=7 白色内环 / Y=10 黄色核心与四角符纹
+#            c=1 深蓝描边（法阵的暗环）
+# 画法：地面上的圆形法阵 —— 中心黄点 + 白晕 + 深蓝暗环 + 浅蓝光环，
+#       光环的四个对角方向各有一道黄色符纹；**四角各有一组黄色符纹角标**。
+# 为什么光环画到图块边缘 + 四角要有符纹：主角精灵也是 16x16，站在图块上
+#       会把图块中间盖住，只有 x=0/1、x=14/15 与第 0 行这些「主角轮廓之外」
+#       的像素还露得出来。所以外圈光环顶到图块边缘（上 / 左 / 右三段），
+#       四角再各放一组黄色符纹角标 —— 玩家站上传送阵时，脚下依然能看到
+#       一圈发光的光环，不会以为那里什么都没有。
+# 为什么底色用道路：两个传送阵格（新手村 28,10 / 野外 1,15）都在道路上，
+#       底色与周围一致才是「地面上的传送阵」而不是「地上摆了个方块」。
+# 可走性：整块是平的地面图案，没有任何实心障碍剪影。
+# ======================================================================
+TILE_10_PORTAL = SpriteMatrix(
+    "tile_10_portal",
+    [
+        "YYOOOOOBBOOOOOYY",
+        "YWOOBBBBBBBBOOWY",
+        "OOOYBBBBBBBBYOOO",
+        "OOYYYccBBccYYYOO",
+        "OBBYcBBBBBBcYBBO",
+        "OBBcBBccccBBcBBO",
+        "OBBcBcWWWWcBcBBO",
+        "BBBBBcWYYWcBBBBB",
+        "BBBBBcWYYWcBBBBB",
+        "OBBcBcWWWWcBcBBO",
+        "OBBcBBccccBBcBBO",
+        "OBBYcBBBBBBcYBBO",
+        "OOYYYccBBccYYYDO",
+        "DOOYBBBBBBBBYOOO",
+        "YWOOBBBBBBBBOOWY",
+        "YYOOOOOBBDOODOYY",
+    ],
+    PALETTE,
+)
+
 #: 全部图块（烘焙顺序 = 绘制顺序，也是 §10.2 的 ID 顺序）
 SPRITES: list[SpriteMatrix] = [
     TILE_0_GRASS,
@@ -359,6 +399,7 @@ SPRITES: list[SpriteMatrix] = [
     TILE_7_ROCK,
     TILE_8_HIGHLAND,
     TILE_9_FLOWER,
+    TILE_10_PORTAL,
 ]
 
 #: 图块 ID（§10.2）-> SpriteMatrix

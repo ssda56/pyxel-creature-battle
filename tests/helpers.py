@@ -30,7 +30,10 @@ def ensure_init() -> None:
     global _initialized
     if _initialized:
         return
-    pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title="unittest", fps=FPS, headless=True)
+    # quit_key=pyxel.KEY_NONE：关掉 Pyxel 自带的「Esc 立刻退出」，
+    # 免得无窗口测试里一个 Esc 把整个测试进程干掉（退出走 Game 的确认弹窗）。
+    pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title="unittest", fps=FPS,
+               headless=True, quit_key=pyxel.KEY_NONE)
     from src.assets_gen import palette
 
     palette.apply()

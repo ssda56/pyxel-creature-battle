@@ -1,6 +1,6 @@
 r"""精灵对战小游戏 —— 程序入口。
 
-正常运行（开窗口，Esc 退出）：
+正常运行（开窗口，按 Esc 弹退出确认，可存档后退出）：
 
     E:\小说2\精灵对战小游戏\.venv\Scripts\python.exe main.py
 
@@ -56,7 +56,11 @@ def main(argv: list[str] | None = None) -> None:
     headless, frames, shot = _parse_args(argv)
 
     # 1) 初始化 Pyxel（分辨率 / 帧率锁定）
-    pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title=TITLE, fps=FPS, headless=headless)
+    # quit_key=pyxel.KEY_NONE：**关掉 Pyxel 自带的「Esc 立刻退出」**，
+    # 改由 src/core/game.py 接管 Esc -> 弹出退出确认弹窗
+    # （存档并退出 / 直接退出 / 取消），玩家按 Esc 不会立刻消失。
+    pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title=TITLE, fps=FPS,
+               headless=headless, quit_key=pyxel.KEY_NONE)
 
     # 1.5) 把窗口抢到前台（否则 SDL 收不到键盘事件，表现为"人物不走"）
     if not headless:

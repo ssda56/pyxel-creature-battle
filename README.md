@@ -139,10 +139,12 @@ pyxel.blt(x, y, img, 0, 0, 16, 16, colkey=0)
 
 ### 5.4 输入
 
-- 动作只有 7 个：`up / down / left / right / confirm / cancel / menu`。
+- 动作共 8 个：`up / down / left / right / confirm / cancel / menu / **quit**`。
 - 按键：**移动 = W/A/S/D 或方向键（两种都支持）**；confirm = Z / K / Enter；
-  cancel = X / J / Backspace；menu = C。
-- **Esc 不做功能键**（保持 Pyxel 默认退出键）。
+  cancel = X / J / Backspace；menu = C；**quit = Esc**。
+- **Esc 由 Game 层接管**（T10 起）：`main.py` 给 `pyxel.init` 传了
+  `quit_key=pyxel.KEY_NONE` 关掉 Pyxel 的默认退出键，改由退出确认弹窗处理
+  （存档并退出 / 直接退出 / 取消），弹窗期间游戏逻辑暂停。
 - `Input.held(action)` = 持续按住；`Input.pressed(action)` = 本帧边沿。
 - 测试用 `FakeInput(script=[{"confirm": 3}])`：脚本是**段列表**，
   每段 `{动作: 持续帧数}`，段与段不重叠，用完后不再按住。
