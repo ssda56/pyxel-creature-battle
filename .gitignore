@@ -24,6 +24,10 @@ saves/*.json
 # 调试产物（临时截图）
 docs/shots/_*.png
 
+# 生图转换的中间产物（原始 PNG 保留入库）
+art-inbox/_converted/
+art-inbox/_selftest*
+
 # 系统垃圾
 Thumbs.db
 Desktop.ini
