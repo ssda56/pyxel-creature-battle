@@ -21,8 +21,7 @@ pip-metadata-*/
 saves/*.json
 !saves/.gitkeep
 
-# 调试产物
-_runtime_log.txt
+# 调试产物（临时截图）
 docs/shots/_*.png
 
 # 系统垃圾

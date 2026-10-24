@@ -4,7 +4,9 @@
 
 **探索地图 → 遭遇野生精灵 → 战斗 / 捕捉 → 治疗与养成 → 商店补给 → 继续探索**
 
-当前进度：**批 1 —— 项目地基**（只搭工程框架与占位素材，战斗 / 背包 / 存档等玩法尚未实现）。
+当前进度：**批 1 完成（M0 脚手架 + M1 地图探索）**。
+可玩内容：标题画面 → 新手村四向行走 / 碰撞 / 摄像机跟随 / NPC 对话 / 地图传送。
+战斗、捕捉、背包、商店、存档**尚未实现**（后续批次）。
 
 ---
 
@@ -53,12 +55,17 @@ E:\小说2\精灵对战小游戏\.venv\Scripts\python.exe -m unittest discover -
 │   ├── core/
 │   │   ├── game.py              # App 主类：update/draw 分发到当前场景
 │   │   ├── scene_manager.py     # 场景栈（push / pop / replace）
-│   │   └── input.py             # 输入抽象（RealInput / FakeInput）
+│   │   ├── input.py             # 输入抽象（RealInput / FakeInput）
+│   │   └── focus.py             # 启动时把窗口抢到前台（Windows）
+│   ├── data/
+│   │   └── map_data.py          # 地图数据（新手村 / 野外）+ 可走性与传送查询
 │   ├── scenes/
 │   │   ├── scene_base.py        # 场景基类（enter/resume/exit/update/draw）
-│   │   └── title_scene.py       # 标题画面（新游戏 / 继续游戏）
+│   │   ├── title_scene.py       # 标题画面（新游戏 / 继续游戏）
+│   │   └── field_scene.py       # 地图探索：移动 / 碰撞 / 摄像机 / NPC 对话 / 传送
 │   ├── ui/
-│   │   └── text.py              # 中文文本渲染封装（字体路径只在这里）
+│   │   ├── text.py              # 中文文本渲染封装（字体路径只在这里）
+│   │   └── transition.py        # 淡入淡出（Bayer 抖动，地图与战斗转场复用）
 │   └── assets_gen/              # 程序化素材（规划文档 `9 方案 D）
 │       ├── palette.py           # 全局唯一配色来源 + 属性→主色表
 │       ├── sprite_base.py       # 字符画烘焙器 + 绘图辅助画布
@@ -66,12 +73,21 @@ E:\小说2\精灵对战小游戏\.venv\Scripts\python.exe -m unittest discover -
 │           ├── tileset.py               # 10 种 16x16 图块
 │           ├── player.py                # 主角 4 方向 x 2 帧
 │           └── creature_placeholder.py  # 8 只精灵占位图（战斗 32x32 + 图标 16x16）
-└── tests/
+└── tests/                     # 共 114 个用例（标准库 unittest）
     ├── helpers.py               # 无窗口跑帧 / 截图 / 假输入工具
-    ├── test_text.py
-    ├── test_sprite.py
-    ├── test_scene_manager.py
-    └── test_title_shot.py
+    ├── field_helpers.py         # FieldScene 专用测试辅助
+    ├── test_text.py             # 字体 / 宽度 / 折行
+    ├── test_sprite.py           # 字符画烘焙
+    ├── test_scene_manager.py    # 场景栈语义
+    ├── test_title_shot.py       # 标题画面与截图
+    ├── test_title_flow.py       # 新游戏 -> FieldScene
+    ├── test_input_keys.py       # WASD + 方向键映射
+    ├── test_map_data.py         # 地图尺寸 / 图块 / 传送有效性
+    ├── test_field_movement.py   # 每格 10 帧 / 撞墙 / 越界
+    ├── test_camera.py           # 摄像机夹取与居中
+    ├── test_portal.py           # 传送
+    ├── test_field_npc.py        # NPC 对话
+    └── test_field_shot.py       # 地图截图
 ```
 
 ## 5. 关键约定（后续批次照此写）
@@ -124,7 +140,8 @@ pyxel.blt(x, y, img, 0, 0, 16, 16, colkey=0)
 ### 5.4 输入
 
 - 动作只有 7 个：`up / down / left / right / confirm / cancel / menu`。
-- 按键：方向键；confirm = Z / K / Enter；cancel = X / J / Backspace；menu = C。
+- 按键：**移动 = W/A/S/D 或方向键（两种都支持）**；confirm = Z / K / Enter；
+  cancel = X / J / Backspace；menu = C。
 - **Esc 不做功能键**（保持 Pyxel 默认退出键）。
 - `Input.held(action)` = 持续按住；`Input.pressed(action)` = 本帧边沿。
 - 测试用 `FakeInput(script=[{"confirm": 3}])`：脚本是**段列表**，
@@ -143,5 +160,30 @@ pyxel.blt(x, y, img, 0, 0, 16, 16, colkey=0)
 **已做**：工程骨架、输入抽象、场景栈、标题画面、中文文本模块、调色板、
 图块 / 主角 / 精灵占位素材、单元测试与截图自检。
 
-**没做（后续批次）**：地图行走、遇敌、战斗、捕捉、背包、商店、存档、音效。
+**批 1 已补**：地图数据（新手村 30x20 / 野外 40x30）、四向网格移动（每格 10 帧插值）、
+碰撞、摄像机跟随与边界夹取、NPC 对话、地图传送、淡入淡出转场。
+
+**没做（后续批次）**：遇敌、战斗、捕捉、背包、商店、存档、音效、正式美术。
 `docs/数值设定.md` 是全部数值的唯一权威来源，实现时以它为准。
+
+---
+
+## 7. 已知限制
+
+### 7.1 中文输入法会吞掉按键（重要）
+
+**开启中文输入法（IME）时，游戏收不到键盘事件**：画面正常刷新，但人物不走、菜单不响应。
+这是 Windows + SDL 层面的行为，不是游戏 bug（实测：窗口焦点正常 `focus=1`、游戏循环正常、
+无任何异常，但 `pyxel.btn()` 恒为 False）。
+
+**解决办法：游玩前把输入法切到英文**（`Shift` 或 `Win+Space`）。
+
+### 7.2 同一进程内不能重复 `pyxel.init()`
+
+Pyxel 2.9.9 的 Rust 内核在第二次 `pyxel.init()` 时会 panic（`Pyxel already initialized`）。
+所以**不要用 PyCharm 的 Python 控制台反复重跑**，用 Run 按钮（每次全新进程）或命令行。
+
+### 7.3 美术是占位素材
+
+当前精灵 / 图块 / 主角都是程序化生成的占位图（能分辨但不好看）。
+其中树的树冠与草地同色（都是色 4），辨识度最低。正式美术在批 4 重画。

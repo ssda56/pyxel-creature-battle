@@ -79,68 +79,15 @@ class Input:
 class RealInput(Input):
     """真实键盘输入。
 
-    `RealInput.DEBUG = True`（或 `main.py --debug-input`）时，每帧把「按住的
-    动作集合」与上一帧比较，发生变化就打印一行。用来区分「按键根本没被 Pyxel
-    收到（窗口没焦点 / 环境问题）」与「收到了但游戏逻辑没响应（代码问题）」。
+    **注意**：中文输入法（IME）开启时会吞掉按键，表现为「画面正常但人物不走」。
+    游玩前请切到英文输入法。详见 README「已知限制」。
     """
 
-    #: 打开后每帧打印按键状态变化（诊断用）
-    #: 临时默认开启，用于排查"地图上不能移动"；定位完成后改回 False。
-    DEBUG = True
-
-    def __init__(self) -> None:
-        self._dbg_last: frozenset[str] = frozenset()
-        #: 上一帧 / 本帧由 pyxel.input_keys 读到的原始键码（btn() 失效时的备用通道）
-        self._prev_keys: frozenset[int] = frozenset()
-        self._cur_keys: frozenset[int] = frozenset()
-        #: 本帧 input_keys 的原始长度（诊断用）
-        self.raw_key_count: int = 0
-        #: 启动至今累计收到过多少次「新按下」的动作（松手后不会清零）
-        self.seen_count: int = 0
-        #: 最近一次收到的动作名
-        self.last_action: str = ""
-        #: 最近一次收到动作时的 pyxel 帧号
-        self.last_frame: int = -1
-
-    @staticmethod
-    def _read_raw_keys() -> frozenset[int]:
-        """读 pyxel.input_keys（本帧原始键码）。失败返回空集合。"""
-        try:
-            return frozenset(int(k) for k in pyxel.input_keys)
-        except Exception:
-            return frozenset()
-
-    def update(self) -> None:
-        self._prev_keys = self._cur_keys
-        self._cur_keys = self._read_raw_keys()
-        self.raw_key_count = len(self._cur_keys)
-        current = frozenset(a for a in ACTIONS if self.held(a))
-        fresh = current - self._dbg_last
-        if fresh:
-            self.seen_count += len(fresh)
-            self.last_action = sorted(fresh)[-1]
-            self.last_frame = pyxel.frame_count
-        if RealInput.DEBUG and current != self._dbg_last:
-            print(f"[input] frame={pyxel.frame_count} held={sorted(current)}")
-        self._dbg_last = current
-
     def held(self, action: str) -> bool:
-        """动作是否按住。
-
-        主通道 `pyxel.btn()`；若它失效（SDL 有焦点但收不到键，实测出现过），
-        退回 `pyxel.input_keys` 这条原始键码通道。
-        """
-        keys = keys_of(action)
-        if any(pyxel.btn(k) for k in keys):
-            return True
-        return any(k in self._cur_keys for k in keys)
+        return any(pyxel.btn(k) for k in keys_of(action))
 
     def pressed(self, action: str) -> bool:
-        """动作是否本帧刚按下（边沿）。同样有 `input_keys` 备用通道。"""
-        keys = keys_of(action)
-        if any(pyxel.btnp(k) for k in keys):
-            return True
-        return any(k in self._cur_keys and k not in self._prev_keys for k in keys)
+        return any(pyxel.btnp(k) for k in keys_of(action))
 
 
 class _Segment:
