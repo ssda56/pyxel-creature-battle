@@ -48,6 +48,7 @@ from src.assets_gen.sprites import tileset
 from src.data import map_data
 from src.scenes.menu_scene import MenuScene
 from src.scenes.scene_base import Scene
+from src.scenes.shop_scene import ShopScene
 from src.ui import text
 from src.ui.transition import Fade
 
@@ -116,6 +117,19 @@ def wild_rng_of(game):
 BOX_X, BOX_Y, BOX_W, BOX_H = 0, 168, 240, 48
 BOX_PAD = 6
 
+
+# ------------------------------------------------------------ 治疗点（批 3 / T6）
+#: 治疗演出的总帧数（任务要求 40~60 帧；这里取 50 帧 = 30fps 下约 1.7 秒）
+HEAL_FRAMES = 50
+#: 闪光的半周期：每 HEAL_FLASH_STEP 帧在「亮 / 暗」之间切一次
+HEAL_FLASH_STEP = 6
+#: 演出最后几帧整屏纯白（最亮的一下）
+HEAL_SOLID_FRAMES = 2
+#: 闪光棋盘格的边长（像素）；4 = 4x4 的方块棋盘
+HEAL_DITHER = 4
+#: 治疗演出结束后的台词
+HEAL_DONE_TEXT = "全队已经恢复了！"
+
 def compute_camera(player_cx: float, player_cy: float,
                    map_w_px: int, map_h_px: int,
                    view_w: int = SCREEN_W, view_h: int = SCREEN_H) -> tuple[int, int]:
@@ -173,6 +187,15 @@ class FieldScene(Scene):
 
         #: 对话框内容：None 或 {"npc": npc, "lines": [...], "page": int}
         self.dialogue = None
+
+        #: 治疗演出：剩余帧数（> 0 = 演出中，玩家不能移动也不能交互）
+        self.heal_timer: int = 0
+        #: 治疗演出：总帧数（画闪光时用来算进度）
+        self.heal_total: int = HEAL_FRAMES
+        #: 治疗演出：已经播放的帧数
+        self.heal_elapsed: int = 0
+        #: 治疗演出：正在治疗的 NPC（演出结束后用它显示结果对话）
+        self.heal_npc: dict | None = None
         #: 转场
         self.fade = Fade()
         #: 等待传送的出入口
@@ -288,6 +311,14 @@ class FieldScene(Scene):
         # 转场期间：不移动、不交互
         if self.fade.is_active:
             self.fade.update()
+            return
+
+        # 治疗演出中：玩家不能移动，也不能交互（状态位挡住输入）
+        if self.heal_timer > 0:
+            self._update_heal()
+            # 重生冷却照常递减（野外状态的时间语义不变），
+            # 但演出期间不做游走 / 遇敌判定，免得战斗打断演出。
+            self._tick_cooldowns()
             return
 
         # 对话中：只能翻页 / 关闭，不能移动
@@ -413,13 +444,77 @@ class FieldScene(Scene):
         }
 
     def _update_dialogue(self, inp) -> None:
-        """对话中：确认键翻页 / 关闭，取消键直接关闭。"""
+        """对话中：确认键翻页 / 关闭，取消键直接关闭。
+
+        **对话读完（关闭对话的那一刻）**按 NPC 的 kind 触发后续行为：
+        商店开商店界面，护士播放治疗演出。
+        """
         if inp.pressed("confirm"):
             self.dialogue["page"] += 1
             if self.dialogue["page"] >= len(self.dialogue["lines"]):
+                npc = self.dialogue["npc"]
+                # 结果对话（no_action）关闭时**不再**触发 NPC 行为，
+                # 否则「治疗结束 -> 关对话 -> 又开始治疗」会变成死循环。
+                no_action = bool(self.dialogue.get("no_action", False))
                 self.dialogue = None
+                if not no_action:
+                    self._on_dialogue_finished(npc)
         elif inp.pressed("cancel"):
             self.dialogue = None
+
+    # ------------------------------------------------------- NPC 交互（T6）
+    def _on_dialogue_finished(self, npc: dict) -> None:
+        """对话读完以后按 NPC 的 kind 触发后续行为。
+
+        - kind == "shop"：**压栈**打开商店界面（关掉后回到原地图原坐标）；
+        - kind == "heal"：播放治疗演出，演出结束全队 HP / MP 全满；
+        - 其它 / 没有 kind：保持原样（只对话）。
+        """
+        kind = npc.get("kind")
+        if kind == "shop":
+            self.game.scenes.push(ShopScene(self.game, npc))
+        elif kind == "heal":
+            self._start_heal(npc)
+
+    # ------------------------------------------------------------ 治疗演出
+    def _start_heal(self, npc: dict) -> None:
+        """开始治疗演出：停下移动，锁住输入，开始闪。"""
+        self.moving = False
+        self.move_timer = 0
+        self.walk_timer = 0
+        self.anim = 0
+        self.heal_npc = npc
+        self.heal_total = HEAL_FRAMES
+        self.heal_timer = HEAL_FRAMES
+        self.heal_elapsed = 0
+
+    def _update_heal(self) -> None:
+        """推进治疗演出（每次 update 一帧）；放完就治疗全队并显示结果对话。"""
+        self.heal_timer -= 1
+        self.heal_elapsed += 1
+        if self.heal_timer <= 0:
+            self.heal_timer = 0
+            self._finish_heal()
+
+    def _finish_heal(self) -> None:
+        """治疗演出结束：全队 HP / MP 全满（免费，不动金币），弹出结果对话。"""
+        player = getattr(self.game, "player", None)
+        if player is not None:
+            player.heal_all()
+        npc = self.heal_npc or {"name": "护士", "kind": "heal"}
+        self.heal_npc = None
+        self.dialogue = {
+            "npc": npc,
+            "lines": [HEAL_DONE_TEXT],
+            "page": 0,
+            # 结果对话：确认键只关闭，不再触发一次治疗
+            "no_action": True,
+        }
+
+    @property
+    def busy(self) -> bool:
+        """是否正忙（对话中 / 治疗演出中）——这两种状态下玩家不能移动。"""
+        return self.dialogue is not None or self.heal_timer > 0
 
     # ---------------------------------------------------- 明雷遇敌（§10.3）
     @property
@@ -723,7 +818,43 @@ class FieldScene(Scene):
         self._draw_hud()
         if self.dialogue is not None:
             self._draw_dialogue()
+        self._draw_heal_fx()
         self.fade.draw()
+
+    def _draw_heal_fx(self) -> None:
+        """治疗演出的闪光效果（整屏棋盘格白闪 + 顶部提示条）。
+
+        闪光节奏（HEAL_FRAMES = 50 帧）：
+
+        - 每 HEAL_FLASH_STEP（6）帧在「亮 / 暗」之间切一次 -> 一共 4 次棋盘闪光；
+        - 最后 HEAL_SOLID_FRAMES（2）帧整屏纯白（最亮的一下）。
+
+        棋盘格用 4x4 的白色方块交错铺满整屏，场景仍然看得见，
+        但一眼就能看出「在闪」。
+        """
+        if self.heal_timer <= 0:
+            return
+
+        elapsed = self.heal_elapsed
+        if elapsed >= self.heal_total - HEAL_SOLID_FRAMES:
+            # 最后一下：整屏纯白
+            pyxel.rect(0, 0, SCREEN_W, SCREEN_H, palette.WHITE)
+        elif (elapsed // HEAL_FLASH_STEP) % 2 == 0:
+            # 棋盘格半调闪光
+            step = HEAL_DITHER
+            for by in range(0, SCREEN_H, step):
+                for bx in range(0, SCREEN_W, step):
+                    if ((bx // step) + (by // step)) % 2 == 0:
+                        pyxel.rect(bx, by, step, step, palette.WHITE)
+
+        # 顶部提示条（画在闪光之上，保证文字始终看得清）
+        banner = "治疗中…"
+        bw = text.width(banner)
+        bx = (SCREEN_W - bw) // 2
+        by = 44
+        pyxel.rect(bx - 6, by, bw + 12, 18, palette.DEEP_BLUE)
+        pyxel.rectb(bx - 6, by, bw + 12, 18, palette.YELLOW)
+        text.draw(bx, by + 3, banner, palette.YELLOW)
 
     def _tile_image(self, tile_id: int) -> pyxel.Image:
         """取图块 ID 对应的已烘焙图片。"""
