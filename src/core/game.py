@@ -18,6 +18,8 @@ from src.assets_gen import sprite_base
 from src.core.input import Input, RealInput
 from src.core.scene_manager import SceneManager
 from src.data import map_data
+from src.data import species_data as sd
+from src.model import Player
 from src.scenes.title_scene import TitleScene
 from src.ui import text
 
@@ -44,6 +46,10 @@ class Game:
             "y": 10,
             "facing": "down",
         }
+
+        #: 玩家状态（队伍 / 金币 / 背包）。
+        #: **临时**：T5 会换成「开局三选一」流程（现在固定用御三家第一只）。
+        self.player: Player = Player.new_game(sd.STARTER_IDS[0])
 
         self.scenes.push(TitleScene(self))
 

@@ -20,12 +20,15 @@ import pyxel
 
 from src.assets_gen import palette
 from src.data import map_data
+from src.data import species_data as sd
+from src.model import Creature, Player
+from src.scenes.battle_scene import BattleScene
 from src.scenes.field_scene import FieldScene
 from src.scenes.scene_base import Scene
 from src.ui import text
 
 TITLE_TEXT = "精灵对战"
-MENU_ITEMS: tuple[str, ...] = ("新游戏", "继续游戏")
+MENU_ITEMS: tuple[str, ...] = ("新游戏", "继续游戏", "测试战斗")
 FOOTER_TEXT = "Pyxel 2.9.9 · 240x216"
 
 #: 画面布局
@@ -64,9 +67,30 @@ class TitleScene(Scene):
                 self.game.scenes.replace(
                     FieldScene(self.game), map_id=map_data.START_MAP_ID
                 )
+            elif self.index == 2:
+                # TODO(T4): 明雷遇敌接入后删除本调试入口
+                self._start_test_battle()
             else:
                 # 继续游戏：读档由 T5 实现
                 print(f"[TitleScene] 选择：{item}（读档由 T5 实现，本批只打印）", flush=True)
+
+    def _start_test_battle(self) -> None:
+        """调试用：直接进一场战斗（T3b 临时入口）。
+
+        - 队伍不足 2 只时补一只水滴滴 Lv5（用来测试换人）；
+        - 敌方是兔小子 Lv5。
+
+        TODO(T4): 明雷遇敌接入后删除本调试入口
+        """
+        # TODO(T4): 明雷遇敌接入后删除本调试入口
+        player = getattr(self.game, "player", None)
+        if player is None:
+            player = Player.new_game(sd.STARTER_IDS[0])
+            self.game.player = player
+        if len(player.party) < 2:
+            player.add_creature(Creature(2, level=5))  # 水滴滴 Lv5
+        enemy = Creature(3, level=5)  # 兔小子 Lv5
+        self.game.scenes.replace(BattleScene(self.game, enemy))
 
     def draw(self) -> None:
         """绘制标题画面。"""
