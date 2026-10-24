@@ -20,6 +20,7 @@ import traceback
 import pyxel
 
 from src.assets_gen import sprite_base
+from src.core import focus
 from src.core.input import ACTIONS, Input, RealInput
 from src.core.scene_manager import SceneManager
 from src.data import map_data
@@ -131,6 +132,7 @@ class Game:
         fade = getattr(scene, "fade", None) if scene is not None else None
         if fade is not None:
             parts.append(f"fade={int(fade.is_active)}|{fade.level}")
+        parts.append(f"focus={int(focus.is_focused())}")
         self._log(" ".join(parts))
 
     # ------------------------------------------------------------ 诊断
@@ -151,6 +153,7 @@ class Game:
         if isinstance(self.input, RealInput):
             last = self.input.last_action or "-"
             rows.append(f"seen={self.input.seen_count} last={last}@{self.input.last_frame}")
+        rows.append(f"focus={int(focus.is_focused())}")
         head = []
         for attr in ("facing", "moving"):
             if cur is not None and hasattr(cur, attr):

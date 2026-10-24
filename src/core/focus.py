@@ -22,6 +22,51 @@ WINDOW_TITLE = "精灵对战"
 _SW_RESTORE = 9
 
 
+_hwnd_cache: int = 0
+
+
+def window_handle(title: str = WINDOW_TITLE) -> int:
+    """返回本进程的窗口句柄（找不到返回 0），结果缓存。"""
+    global _hwnd_cache
+    if _hwnd_cache:
+        return _hwnd_cache
+    if sys.platform != "win32":
+        return 0
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, title)
+        if not hwnd:
+            return 0
+        owner = ctypes.c_ulong(0)
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value != os.getpid():
+            return 0
+        _hwnd_cache = int(hwnd)
+        return _hwnd_cache
+    except Exception:
+        return 0
+
+
+def is_focused(title: str = WINDOW_TITLE) -> bool:
+    """游戏窗口当前是否是**前台窗口**（即键盘事件会送到游戏）。
+
+    非 Windows 或找不到窗口时一律返回 True，避免误报。
+    """
+    if sys.platform != "win32":
+        return True
+    try:
+        import ctypes
+
+        hwnd = window_handle(title)
+        if not hwnd:
+            return True
+        return int(ctypes.windll.user32.GetForegroundWindow()) == hwnd
+    except Exception:
+        return True
+
+
 def grab_focus(title: str = WINDOW_TITLE) -> bool:
     """尝试把标题为 title 的窗口置于前台。
 

@@ -21,6 +21,10 @@ pip-metadata-*/
 saves/*.json
 !saves/.gitkeep
 
+# 调试产物
+_runtime_log.txt
+docs/shots/_*.png
+
 # 系统垃圾
 Thumbs.db
 Desktop.ini
