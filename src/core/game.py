@@ -14,8 +14,10 @@
 
 from __future__ import annotations
 
+import pyxel
+
 from src.assets_gen import sprite_base
-from src.core.input import Input, RealInput
+from src.core.input import ACTIONS, Input, RealInput
 from src.core.scene_manager import SceneManager
 from src.data import map_data
 from src.scenes.title_scene import TitleScene
@@ -64,3 +66,42 @@ class Game:
         scene = self.scenes.current
         if scene is not None:
             scene.draw()
+        if RealInput.DEBUG:
+            self._draw_debug_overlay()
+
+    # ------------------------------------------------------------ 诊断
+    def _draw_debug_overlay(self) -> None:
+        """把输入与场景状态画在屏幕上（`--debug-input` 时启用）。
+
+        用来在不看终端的情况下判断：按键到底有没有被收到（held/prs 两行），
+        以及场景卡在什么状态（fade / moving / facing）。
+        """
+        held = [a for a in ACTIONS if self.input.held(a)]
+        pressed = [a for a in ACTIONS if self.input.pressed(a)]
+        cur = self.scenes.current
+        rows = [
+            f"scn {type(cur).__name__ if cur else 'None'}",
+            f"held {','.join(held) if held else '-'}",
+            f"prs  {','.join(pressed) if pressed else '-'}",
+        ]
+        head = []
+        for attr in ("facing", "moving"):
+            if cur is not None and hasattr(cur, attr):
+                head.append(f"{attr}={getattr(cur, attr)}")
+        tail = []
+        for attr in ("gx", "gy", "map_id"):
+            if cur is not None and hasattr(cur, attr):
+                tail.append(f"{attr}={getattr(cur, attr)}")
+        fade = getattr(cur, "fade", None) if cur is not None else None
+        if fade is not None:
+            tail.append(f"fade={int(fade.is_active)}|{fade.level}")
+        if head:
+            rows.append(" ".join(head))
+        if tail:
+            rows.append(" ".join(tail))
+
+        y = 2
+        for row in rows:
+            pyxel.rect(0, y - 1, 240, 12, 0)
+            text.draw(2, y, row, 7)
+            y += 12
