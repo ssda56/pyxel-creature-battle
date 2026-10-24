@@ -82,6 +82,11 @@ MAPS: dict[int, dict] = {
             [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],  # y=19
         ],
         "spawn": (15, 10),
+        #: 刷怪点（明雷遇敌）：新手村**没有**野生精灵（《数值设定.md》§10.4
+        #: 「区域 1 新手村：无野生精灵」），所以是空列表。
+        "spawn_points": [],
+        #: 遇敌表：新手村为 None（同上）。
+        "encounters": None,
         "portals": [
             {"x": 28, "y": 10, "to_map": 2, "to_x": 2, "to_y": 15},
         ],
@@ -129,6 +134,26 @@ MAPS: dict[int, dict] = {
             [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],  # y=29
         ],
         "spawn": (2, 15),
+        #: 刷怪点（明雷遇敌）：全部落在**草丛**（图块 1）上，互不重叠，
+        #: 分散在野外各处，保证玩家走一段就能遇到。
+        "spawn_points": [
+            (4, 20), (7, 21), (5, 22),      # 左下草丛
+            (6, 4), (12, 12), (13, 14),      # 上 / 中草丛
+            (28, 17), (14, 25),             # 右 / 下草丛
+        ],
+        #: 遇敌表（《数值设定.md》§10.3 参数 + §10.4 区域 2 野外权重）。
+        "encounters": {
+            "max_alive": 4,                  # 同屏存活上限
+            "respawn_frames": 180,           # 重生冷却（6 秒）
+            "move_min": 40, "move_max": 70,  # 游走间隔（帧）
+            "table": [                       # 权重之和 = 100
+                {"species_id": 3, "level_min": 2, "level_max": 5, "weight": 30},  # 兔小子
+                {"species_id": 1, "level_min": 3, "level_max": 6, "weight": 25},  # 小火狮
+                {"species_id": 2, "level_min": 3, "level_max": 6, "weight": 20},  # 水滴滴
+                {"species_id": 4, "level_min": 4, "level_max": 7, "weight": 15},  # 小狮鹫
+                {"species_id": 8, "level_min": 3, "level_max": 6, "weight": 10},  # 闪电小子
+            ],
+        },
         "portals": [
             {"x": 1, "y": 15, "to_map": 1, "to_x": 27, "to_y": 10},
         ],
@@ -182,3 +207,67 @@ def portals_of(map_id: int) -> list[dict]:
 def npcs_of(map_id: int) -> list[dict]:
     """某张地图的 NPC 列表（拷贝）。"""
     return [dict(n) for n in get_map(map_id)["npcs"]]
+
+
+# ------------------------------------------------------- 明雷遇敌（§10.3/§10.4）
+def spawn_points_of(map_id: int) -> list[tuple[int, int]]:
+    """某张地图的刷怪点列表（拷贝）。
+
+    每个点都是**可走格**（野外全部落在草丛上），互不重叠。
+    没有遇敌表的地图返回空列表。
+    """
+    return [(int(x), int(y)) for x, y in (get_map(map_id).get("spawn_points") or [])]
+
+
+def encounters_of(map_id: int) -> dict | None:
+    """某张地图的遇敌表（拷贝）；没有遇敌表的地图返回 None。
+
+    结构::
+
+        {"max_alive": 4, "respawn_frames": 180,
+         "move_min": 40, "move_max": 70,
+         "table": [{"species_id": .., "level_min": .., "level_max": .., "weight": ..}]}
+    """
+    enc = get_map(map_id).get("encounters")
+    if enc is None:
+        return None
+    out = dict(enc)
+    out["table"] = [dict(row) for row in enc.get("table", [])]
+    return out
+
+
+def roll_wild(map_id: int, rng) -> tuple[int, int] | None:
+    """按遇敌表抽一只野生精灵，返回 (species_id, level)。
+
+    - 种族按 weight 加权随机（§10.4）；
+    - 等级在 [level_min, level_max] 闭区间里均匀随机；
+    - 该地图没有遇敌表时返回 None。
+
+    参数
+    ----
+    map_id
+        地图 ID。
+    rng
+        随机源：需要 random() 与 randint(a, b)
+        （random.Random 或模块级 random 都行）。
+    """
+    enc = encounters_of(map_id)
+    if not enc:
+        return None
+    table = enc.get("table") or []
+    total = sum(int(row["weight"]) for row in table)
+    if total <= 0:
+        return None
+
+    # 加权抽种族
+    roll = rng.random() * total
+    acc = 0
+    picked = table[-1]
+    for row in table:
+        acc += int(row["weight"])
+        if roll < acc:
+            picked = row
+            break
+
+    level = rng.randint(int(picked["level_min"]), int(picked["level_max"]))
+    return int(picked["species_id"]), int(level)

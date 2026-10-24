@@ -1,11 +1,13 @@
-"""战斗中的道具 / 换人 / 标题调试入口测试（T3b）。"""
+"""战斗中的道具 / 换人测试（T3b）。
+
+注：T3b 时的「标题画面测试战斗」调试入口已在 T4（明雷遇敌）删除，
+对应的 :class:`TitleDebugEntryTest` 一并移除（入口本身是临时脚手架）。
+"""
 
 from __future__ import annotations
 
 import unittest
 
-from src.core.game import Game
-from src.core.input import FakeInput
 from src.model import Creature
 from src.scenes.battle_scene import BattleScene
 from tests import battle_helpers as bh
@@ -101,36 +103,6 @@ class SwitchTest(unittest.TestCase):
         bh.press(self.game, "confirm")
         self.assertEqual(self.scene.state, BattleScene.MESSAGE)
         self.assertIn("没有可以换的精灵", self.scene.message)
-
-
-class TitleDebugEntryTest(unittest.TestCase):
-    """标题画面的「测试战斗」调试入口。"""
-
-    def setUp(self):
-        helpers.ensure_init()
-
-    def test_menu_has_third_item(self):
-        from src.scenes.title_scene import MENU_ITEMS
-
-        self.assertEqual(len(MENU_ITEMS), 3)
-        self.assertEqual(MENU_ITEMS[2], "测试战斗")
-
-    def test_third_menu_item_starts_test_battle(self):
-        game = Game(input=FakeInput())
-        title = game.scenes.current
-        self.assertEqual(title.index, 0)
-        title.index = 2          # 光标移到「测试战斗」
-        game.input = FakeInput(script=[{"confirm": 1}])
-        game.update()
-        scene = game.scenes.current
-        self.assertIsInstance(scene, BattleScene)
-        # 队伍至少 2 只（补一只水滴滴 Lv5）
-        self.assertEqual(len(game.player.party), 2)
-        self.assertEqual(game.player.party[1].species_id, 2)
-        self.assertEqual(game.player.party[1].level, 5)
-        # 敌方是兔小子 Lv5
-        self.assertEqual(scene.enemy.species_id, 3)
-        self.assertEqual(scene.enemy.level, 5)
 
 
 if __name__ == "__main__":

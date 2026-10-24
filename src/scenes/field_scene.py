@@ -1,4 +1,4 @@
-"""地图探索场景（里程碑 M1 / 批 1）。
+"""地图探索场景（里程碑 M1 / 批 1 + 里程碑 M3 / T4 明雷遇敌）。
 
 本批实现
 --------
@@ -17,15 +17,29 @@
 - 像素坐标 (px, py)：浮点，主角精灵**左上角**在屏幕上的位置（未减摄像机）；
   静止时 px = gx * 16、py = gy * 16，移动时在两格之间线性插值。
 
+明雷遇敌（T4，《数值设定.md》§10.3 / §10.4）
+-------------------------------------
+- 野外状态**挂在 game 上**（game.wild_state），跨场景存活：
+  战斗结束时 T3b 会 replace(FieldScene)，地图场景会被整个重建，
+  所以刷怪状态（存活精灵、重生冷却）不能存在 FieldScene 实例里；
+- game.wild_state[map_id] = {"wanderers": [...], "cooldown": {spawn_index: 帧数}}；
+- game.wild_rng：随机源（测试可注入 random.Random(seed)）；
+- 刷怪：进入地图按 max_alive 从刷怪点随机取点生成（种族/等级按遇敌表抽）；
+- 游走：每 40~70 帧向 4 方向随机走 1 格（不可走 / 有精灵 / 玩家所在格则不动）；
+- 碰撞：玩家与精灵同格 -> 立刻进入战斗（BattleScene），战斗结束移除该精灵并冷却。
+
 对外接口（后续批次照着用）
 --------------------------
     FieldScene(game)
     scene.enter(map_id=None, x=None, y=None, facing=None)
     scene.gx / scene.gy / scene.facing / scene.map_id
     scene.camera / scene.camera_x / scene.camera_y
+    scene.wanderers / scene.wild_state
 """
 
 from __future__ import annotations
+
+import random
 
 import pyxel
 
@@ -59,6 +73,46 @@ DIRECTIONS: dict[str, tuple[int, int]] = {
 
 #: 方向键的检查优先级（同时按住多个键时用这个顺序）
 DIR_ORDER: tuple[str, ...] = ("up", "down", "left", "right")
+
+
+# ------------------------------------------------------------ 明雷遇敌（§10.3）
+#: 野外状态挂在 game 上的属性名（**懒创建**，跨场景存活）
+WILD_STATE_ATTR = "wild_state"
+WILD_RNG_ATTR = "wild_rng"
+
+#: 游走方向（4 方向随机走 1 格，§10.3）
+WANDER_DIRS: tuple[tuple[int, int], ...] = ((0, -1), (0, 1), (-1, 0), (1, 0))
+
+
+def wild_state_of(game) -> dict:
+    """取 game 上的野外状态表（懒创建）。
+
+    结构（跨场景存活，战斗结束后地图场景被重建也不丢）：
+
+        {map_id: {"wanderers": [wanderer, ...], "cooldown": {spawn_index: 帧数}}}
+
+    其中 wanderer::
+
+        {"species_id": int, "level": int, "gx": int, "gy": int,
+         "alive": bool, "move_timer": int, "spawn_index": int}
+    """
+    states = getattr(game, WILD_STATE_ATTR, None)
+    if not isinstance(states, dict):
+        states = {}
+        setattr(game, WILD_STATE_ATTR, states)
+    return states
+
+
+def wild_rng_of(game):
+    """取 game 上的野外随机源（懒创建，默认 random.Random()）。
+
+    测试可以注入 random.Random(seed) 让刷怪与游走完全可复现。
+    """
+    rng = getattr(game, WILD_RNG_ATTR, None)
+    if rng is None:
+        rng = random.Random()
+        setattr(game, WILD_RNG_ATTR, rng)
+    return rng
 
 #: 对话框位置（《数值设定.md》§13.4：底部 240x48，2 行 19 字）
 BOX_X, BOX_Y, BOX_W, BOX_H = 0, 168, 240, 48
@@ -132,6 +186,13 @@ class FieldScene(Scene):
         #: menu 提示剩余帧数
         self.hint_timer = 0
 
+        #: 本次战斗中参战的野生精灵（战斗结束时用来移除它）
+        self.battle_target = None
+        #: 当前地图的遇敌表（缓存；None = 该图没有野生精灵）
+        self._encounters = map_data.encounters_of(self.map_id)
+        #: 当前地图的刷怪点（缓存）
+        self._spawn_points = map_data.spawn_points_of(self.map_id)
+
     # ------------------------------------------------------------ 生命周期
     def enter(self, **kwargs) -> None:
         """进入地图场景。
@@ -165,6 +226,8 @@ class FieldScene(Scene):
         """切换到指定地图并把主角放到 (x, y)（不给就用出生点 / player_state）。"""
         self.map_id = map_id
         self.map = map_data.get_map(map_id)
+        self._encounters = map_data.encounters_of(map_id)
+        self._spawn_points = map_data.spawn_points_of(map_id)
 
         state = getattr(self.game, "player_state", None) or {}
         if x is None or y is None:
@@ -194,6 +257,9 @@ class FieldScene(Scene):
         if facing in DIRECTIONS:
             self.facing = facing
         self.sync_state()
+        # 野外状态挂在 game 上（跨场景存活）：这里只做「补足数量」，
+        # 不会重置已经存活的精灵与重生冷却。
+        self._refresh_population()
 
     def sync_state(self) -> None:
         """把当前位置 / 朝向 / 地图写回 game.player_state（存档系统用）。"""
@@ -265,6 +331,10 @@ class FieldScene(Scene):
             self.anim = 0
 
         self.sync_state()
+
+        # 明雷遇敌：游走 + 碰撞检测。返回 True 表示已经进入战斗场景。
+        if self._update_wild():
+            return
 
     def _read_direction(self, inp) -> str | None:
         """读方向：优先用本帧刚按下的方向，否则用当前朝向。"""
@@ -360,10 +430,303 @@ class FieldScene(Scene):
         elif inp.pressed("cancel"):
             self.dialogue = None
 
+    # ---------------------------------------------------- 明雷遇敌（§10.3）
+    @property
+    def wild_state(self) -> dict:
+        """当前地图的野外状态字典（**就是** game.wild_state[map_id] 本身）。
+
+        结构::
+
+            {"wanderers": [wanderer, ...], "cooldown": {spawn_index: 剩余帧数}}
+
+        其中 wanderer::
+
+            {"species_id": int, "level": int, "gx": int, "gy": int,
+             "alive": bool, "move_timer": int, "spawn_index": int}
+        """
+        return self._wild_state()
+
+    @property
+    def wanderers(self) -> list[dict]:
+        """当前地图存活的野生精灵列表（原地引用 game.wild_state 里的那份）。"""
+        return self._wild_state()["wanderers"]
+
+    def _wild_state(self) -> dict:
+        """取（并懒创建）当前地图在 game 上的野外状态。
+
+        **这个 dict 是跨场景存活的**：战斗结束后地图场景会被整个重建，
+        但因为状态挂在 game 上，存活精灵与重生冷却都不会丢。
+        """
+        states = wild_state_of(self.game)
+        state = states.get(self.map_id)
+        if state is None:
+            state = {"wanderers": [], "cooldown": {}}
+            states[self.map_id] = state
+        state.setdefault("wanderers", [])
+        state.setdefault("cooldown", {})
+        return state
+
+    def _refresh_population(self) -> None:
+        """补足野外精灵数量（受 max_alive 与刷怪点占用约束）。
+
+        规则（§10.3）：
+
+        - 同屏存活上限 = encounters["max_alive"]；
+        - 处于重生冷却的刷怪点**也算占位**（冷却没走完不许在那里再刷），
+          这样「打掉一只 -> 冷却 180 帧 -> 从刷怪点重生」才成立；
+        - 精灵不能刷在玩家所在格，也不能和别的精灵重叠。
+        """
+        enc = self._encounters
+        if enc is None:
+            return
+        points = self._spawn_points
+        if not points:
+            return
+
+        state = self._wild_state()
+        wanderers = state["wanderers"]
+        cooldown = state["cooldown"]
+        max_alive = int(enc["max_alive"])
+        rng = wild_rng_of(self.game)
+
+        # 已被占用（或正在冷却）的刷怪点不能再用
+        used = {int(w["spawn_index"]) for w in wanderers}
+        used |= {int(i) for i in cooldown}
+        free = [i for i in range(len(points)) if i not in used]
+        occupied = {(int(w["gx"]), int(w["gy"])) for w in wanderers}
+
+        candidates = free
+
+        # 「存活数 + 冷却中」不超过上限：冷却中的刷怪点也算占位，
+        # 这样打掉一只之后不会立刻在别处补一只（冷却形同虚设）。
+        while candidates and len(wanderers) + len(cooldown) < max_alive:
+            idx = candidates.pop(rng.randrange(len(candidates)))
+            px, py = points[idx]
+            if not map_data.is_walkable(self.map_id, px, py):
+                continue
+            if (px, py) == (self.gx, self.gy):
+                continue                       # 不刷在玩家所在格
+            if (px, py) in occupied:
+                continue                       # 不和别的精灵重叠
+            self._spawn_wanderer(idx, (px, py))
+            occupied.add((px, py))
+
+    def _spawn_wanderer(self, spawn_index: int, point: tuple[int, int]) -> dict | None:
+        """在指定刷怪点生成一只野生精灵，返回它的状态字典。"""
+        enc = self._encounters
+        if enc is None:
+            return None
+        rng = wild_rng_of(self.game)
+        rolled = map_data.roll_wild(self.map_id, rng)
+        if rolled is None:
+            return None
+        species_id, level = rolled
+        move_min = int(enc["move_min"])
+        move_max = int(enc["move_max"])
+        wanderer = {
+            "species_id": int(species_id),
+            "level": int(level),
+            "gx": int(point[0]),
+            "gy": int(point[1]),
+            "alive": True,
+            "move_timer": rng.randint(move_min, move_max),
+            "spawn_index": int(spawn_index),
+        }
+        self._wild_state()["wanderers"].append(wanderer)
+        return wanderer
+
+    def _tick_cooldowns(self) -> None:
+        """所有地图的重生冷却每帧递减（§10.3：重生冷却 180 帧 = 6 秒）。
+
+        冷却归零时**立刻**在原刷怪点把精灵刷回来
+        （§10.3「战斗结束后该实体从地图移除，冷却后从刷怪点重生」）。
+        """
+        states = wild_state_of(self.game)
+        for map_id, state in list(states.items()):
+            cooldown = state.get("cooldown") or {}
+            for idx in list(cooldown.keys()):
+                left = int(cooldown[idx]) - 1
+                if left > 0:
+                    cooldown[idx] = left
+                    continue
+                del cooldown[idx]
+                self._respawn_wanderer(map_id, int(idx))
+
+    def _respawn_wanderer(self, map_id: int, spawn_index: int) -> None:
+        """在指定地图的指定刷怪点重生一只精灵（冷却走完后调用）。
+
+        刷怪点被占 / 不可走 / 已达存活上限时就不刷。
+        """
+        enc = map_data.encounters_of(map_id)
+        if enc is None:
+            return
+        points = map_data.spawn_points_of(map_id)
+        if not 0 <= spawn_index < len(points):
+            return
+
+        state = wild_state_of(self.game).setdefault(
+            map_id, {"wanderers": [], "cooldown": {}})
+        wanderers = state["wanderers"]
+        if len(wanderers) >= int(enc["max_alive"]):
+            return
+
+        occupied = {(int(w["gx"]), int(w["gy"])) for w in wanderers}
+        player_cell = (self.gx, self.gy) if map_id == self.map_id else None
+
+        # 优先原刷怪点；被占了就换一个可用的刷怪点
+        candidates = [spawn_index] + [i for i in range(len(points))
+                                     if i != spawn_index]
+        rng = wild_rng_of(self.game)
+        for idx in candidates:
+            px, py = points[idx]
+            if not map_data.is_walkable(map_id, px, py):
+                continue
+            if (px, py) in occupied:
+                continue                      # 不和别的精灵重叠
+            if (px, py) == player_cell:
+                continue                      # 不刷在玩家所在格
+            rolled = map_data.roll_wild(map_id, rng)
+            if rolled is None:
+                return
+            species_id, level = rolled
+            wanderers.append({
+                "species_id": int(species_id),
+                "level": int(level),
+                "gx": int(px),
+                "gy": int(py),
+                "alive": True,
+                "move_timer": rng.randint(int(enc["move_min"]),
+                                          int(enc["move_max"])),
+                "spawn_index": int(spawn_index),
+            })
+            return
+
+    def _update_wild(self) -> bool:
+        """推进野外状态：冷却递减 -> 补足数量 -> 碰撞检测 -> 游走 -> 碰撞检测。
+
+        返回 True 表示**已经进入战斗**（本帧不要再更新别的逻辑）。
+
+        两次碰撞检测的原因：玩家先走、精灵后走，所以要
+        「先查玩家是否踩到精灵，再查精灵是否踩到玩家」。
+        """
+        self._tick_cooldowns()
+
+        enc = self._encounters
+        if enc is None:
+            return False
+
+        # 数量不足时补足（冷却走完的精灵已由 _tick_cooldowns 直接重生）
+        self._refresh_population()
+
+        # 玩家刚落到精灵所在格 -> 立刻进战斗（精灵还没来得及走）
+        if self._check_encounter():
+            return True
+
+        state = self._wild_state()
+        wanderers = state["wanderers"]
+        rng = wild_rng_of(self.game)
+        move_min = int(enc["move_min"])
+        move_max = int(enc["move_max"])
+
+        occupied = {(int(w["gx"]), int(w["gy"])) for w in wanderers
+                    if w.get("alive", True)}
+        player_cell = (self.gx, self.gy)
+
+        for w in wanderers:
+            if not w.get("alive", True):
+                continue
+            w["move_timer"] = int(w.get("move_timer", move_min)) - 1
+            if w["move_timer"] > 0:
+                continue
+            # 到了游走时间：4 方向随机走 1 格
+            dx, dy = rng.choice(WANDER_DIRS)
+            nx, ny = int(w["gx"]) + dx, int(w["gy"]) + dy
+            if ((nx, ny) != player_cell
+                    and (nx, ny) not in occupied
+                    and map_data.is_walkable(self.map_id, nx, ny)):
+                occupied.discard((int(w["gx"]), int(w["gy"])))
+                w["gx"], w["gy"] = nx, ny
+                occupied.add((nx, ny))
+            # 走不动就原地不动，重新计时（§10.3「无路可走则原地停留」）
+            w["move_timer"] = rng.randint(move_min, move_max)
+
+        # 精灵走到玩家所在格 -> 同样进战斗
+        return self._check_encounter()
+
+    def _check_encounter(self) -> bool:
+        """玩家与野生精灵同格 -> 立刻进入战斗（§10.3）。"""
+        for w in self._wild_state()["wanderers"]:
+            if not w.get("alive", True):
+                continue
+            if int(w["gx"]) == self.gx and int(w["gy"]) == self.gy:
+                self._start_battle(w)
+                return True
+        return False
+
+    def _start_battle(self, wanderer: dict) -> None:
+        """进入战斗（**replace** 当前场景，战斗结束后 T3b 会 replace 回地图）。
+
+        为什么用 replace 而不是 push：T3b 的战斗结束时执行
+        ``game.scenes.replace(FieldScene(game), ...)``，如果这里 push，
+        场景栈会多留一层旧 FieldScene（每打一次仗多一层）。
+        """
+        from src.model import Creature
+        from src.scenes.battle_scene import BattleScene
+
+        self.battle_target = wanderer
+        enemy = Creature(int(wanderer["species_id"]), int(wanderer["level"]))
+        self.game.scenes.replace(BattleScene(self.game, enemy,
+                                  on_end=self._on_battle_end))
+
+    def _on_battle_end(self, result: str) -> None:
+        """战斗结束（由 BattleScene 在弹出前调用一次）。
+
+        - 参战的精灵从地图上移除，它占用的刷怪点进入重生冷却；
+        - 逃跑（§5.5）：玩家向后弹开 1 格（目标格不可走则原地不动）；
+        - 战败：玩家由 T3b 传送到新手村出生点，这里不用特殊处理。
+        """
+        target = self.battle_target
+        self.battle_target = None
+
+        state = self._wild_state()
+        enc = self._encounters
+
+        if target is not None:
+            wanderers = state["wanderers"]
+            for i, w in enumerate(wanderers):
+                if w is target:
+                    del wanderers[i]
+                    break
+            target["alive"] = False
+            if enc is not None:
+                state["cooldown"][int(target["spawn_index"])] = int(
+                    enc["respawn_frames"])
+
+        if result == "run":
+            self._push_back_player()
+
+    def _push_back_player(self) -> None:
+        """玩家向后弹开 1 格（§5.5）；目标格不可走 / 被精灵占着则原地不动。"""
+        dx, dy = DIRECTIONS.get(self.facing, (0, 0))
+        nx, ny = self.gx - dx, self.gy - dy
+        if not map_data.is_walkable(self.map_id, nx, ny):
+            return
+        for w in self._wild_state()["wanderers"]:
+            if w.get("alive", True) and int(w["gx"]) == nx and int(w["gy"]) == ny:
+                return
+        self.gx, self.gy = nx, ny
+        self.px = float(nx * map_data.TILE_SIZE)
+        self.py = float(ny * map_data.TILE_SIZE)
+        self.moving = False
+        self.move_timer = 0
+        self.walk_timer = 0
+        self.sync_state()
+
     # ------------------------------------------------------------ 绘制
     def draw(self) -> None:
         """绘制整个地图场景。"""
         self._draw_map()
+        self._draw_wanderers()
         self._draw_npcs()
         self._draw_player()
         self._draw_hud()
@@ -412,6 +775,23 @@ class FieldScene(Scene):
                     sh = SCREEN_H - dy
                 if sw > 0 and sh > 0:
                     pyxel.blt(dx, dy, img, sx, sy, sw, sh, colkey=0)
+
+    def _draw_wanderers(self) -> None:
+        """画野生精灵（16x16 图标，在玩家**之前**画，玩家在它上面）。"""
+        cam_x, cam_y = self.camera
+        size = map_data.TILE_SIZE
+        for w in self._wild_state()["wanderers"]:
+            if not w.get("alive", True):
+                continue
+            x = int(w["gx"]) * size - cam_x
+            y = int(w["gy"]) * size - cam_y
+            if x < -size or y < -size or x > SCREEN_W or y > SCREEN_H:
+                continue
+            try:
+                img = sprite_base.get(f"creature_{int(w['species_id'])}_icon")
+            except KeyError:
+                continue
+            pyxel.blt(x, y, img, 0, 0, 16, 16, colkey=0)
 
     def _draw_npcs(self) -> None:
         """画 NPC（16x16 小人，用图元拼）。"""
