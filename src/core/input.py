@@ -85,7 +85,8 @@ class RealInput(Input):
     """
 
     #: 打开后每帧打印按键状态变化（诊断用）
-    DEBUG = False
+    #: 临时默认开启，用于排查"地图上不能移动"；定位完成后改回 False。
+    DEBUG = True
 
     def __init__(self) -> None:
         self._dbg_last: frozenset[str] = frozenset()
