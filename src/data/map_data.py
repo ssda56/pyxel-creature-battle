@@ -150,11 +150,16 @@ MAPS: dict[int, dict] = {
             "respawn_frames": 360,           # 重生冷却（360 帧 @60fps = 6 秒）
             "move_min": 80, "move_max": 140,  # 游走间隔（帧；80~140 帧 @60fps = 1.33~2.33 秒）
             "table": [                       # 权重之和 = 100
-                {"species_id": 3, "level_min": 2, "level_max": 5, "weight": 30},  # 兔小子
-                {"species_id": 1, "level_min": 3, "level_max": 6, "weight": 25},  # 小火狮
-                {"species_id": 2, "level_min": 3, "level_max": 6, "weight": 20},  # 水滴滴
-                {"species_id": 4, "level_min": 4, "level_max": 7, "weight": 15},  # 小狮鹫
-                {"species_id": 8, "level_min": 3, "level_max": 6, "weight": 10},  # 闪电小子
+                {"species_id": 3, "level_min": 2, "level_max": 5, "weight": 20},  # 兔小子
+                {"species_id": 1, "level_min": 3, "level_max": 6, "weight": 16},  # 小火狮
+                {"species_id": 2, "level_min": 3, "level_max": 6, "weight": 14},  # 水滴滴
+                {"species_id": 4, "level_min": 4, "level_max": 7, "weight": 10},  # 小狮鹫
+                {"species_id": 8, "level_min": 3, "level_max": 6, "weight": 8},   # 闪电小子
+                {"species_id": 10, "level_min": 2, "level_max": 5, "weight": 10}, # 涟漪豚
+                {"species_id": 9, "level_min": 4, "level_max": 7, "weight": 8},   # 雾尾狐
+                {"species_id": 14, "level_min": 2, "level_max": 4, "weight": 8},  # 雏羽啾
+                {"species_id": 12, "level_min": 5, "level_max": 8, "weight": 4},  # 花刃忍
+                {"species_id": 17, "level_min": 4, "level_max": 7, "weight": 2},  # 导线蛇
             ],
         },
         "portals": [
@@ -229,11 +234,16 @@ MAPS: dict[int, dict] = {
             "respawn_frames": 360,           # 重生冷却（360 帧 @60fps = 6 秒）
             "move_min": 80, "move_max": 140,  # 游走间隔（帧；80~140 帧 @60fps = 1.33~2.33 秒）
             "table": [                       # 权重之和 = 100
-                {"species_id": 6, "level_min": 8,  "level_max": 12, "weight": 30},  # 三头犬
-                {"species_id": 5, "level_min": 9,  "level_max": 13, "weight": 25},  # 独角兽
-                {"species_id": 4, "level_min": 7,  "level_max": 10, "weight": 20},  # 小狮鹫
-                {"species_id": 8, "level_min": 8,  "level_max": 11, "weight": 20},  # 闪电小子
+                {"species_id": 6, "level_min": 8,  "level_max": 12, "weight": 20},  # 三头犬
+                {"species_id": 5, "level_min": 9,  "level_max": 13, "weight": 18},  # 独角兽
+                {"species_id": 4, "level_min": 7,  "level_max": 10, "weight": 12},  # 小狮鹫
+                {"species_id": 8, "level_min": 8,  "level_max": 11, "weight": 12},  # 闪电小子
                 {"species_id": 7, "level_min": 15, "level_max": 18, "weight": 5},   # 不死鸟
+                {"species_id": 11, "level_min": 8,  "level_max": 12, "weight": 8},   # 灯火鳅
+                {"species_id": 13, "level_min": 10, "level_max": 14, "weight": 8},   # 荆星芽
+                {"species_id": 15, "level_min": 9,  "level_max": 13, "weight": 8},   # 夜幕翼
+                {"species_id": 16, "level_min": 9,  "level_max": 12, "weight": 5},   # 绒医团
+                {"species_id": 18, "level_min": 12, "level_max": 16, "weight": 4},   # 雷云团
             ],
             # 「最深处」语义：只有下面这些点位（最深处洞室 D）会刷不死鸟，
             # 其余普通点位永远刷不出不死鸟（roll_wild 按点位筛选种族）。

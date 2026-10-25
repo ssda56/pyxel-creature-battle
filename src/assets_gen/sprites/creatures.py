@@ -1,4 +1,4 @@
-"""8 只精灵的**成品字符画**（方案 D：程序化字符画，批 4 重绘）。
+"""18 只精灵的**成品字符画**（方案 D：程序化字符画，批 4 重绘）。
 
 每只精灵两张图，名字与旧占位版**完全一致**（场景代码按名字取图）：
 
@@ -21,6 +21,9 @@
 精灵 id 与《数值设定.md》§1.2 一致：
     1 小火狮 火 / 2 水滴滴 水 / 3 兔小子 草 / 4 小狮鹫 风
     5 独角兽 光 / 6 三头犬 暗 / 7 不死鸟 火 / 8 闪电小子 雷
+新增 10 只（见 docs/02-新增10只精灵规划.md §三）：
+    9 雾尾狐 火 / 10 涟漪豚 水 / 11 灯火鳅 水 / 12 花刃忍 草 / 13 荆星芽 草
+    14 雏羽啾 风 / 15 夜幕翼 暗 / 16 绒医团 光 / 17 导线蛇 雷 / 18 雷云团 雷
 """
 
 from __future__ import annotations
@@ -527,6 +530,607 @@ THUNDER_KID_ICON = [
 ]
 
 
+# ======================================================================
+# 9 雾尾狐（火）—— 低伏起跑的小火狐：大尖耳、前爪离地，尾巴占右侧 1/3，尾尖由橙渐变成黄烟团；烟只做轮廓外缘 3 个圆
+# 耳内红、腹浅灰，眼睛白圈 + 深蓝瞳孔
+# 战斗图用色索引：[1, 5, 7, 8, 9, 10, 15]
+# 图标用色索引：  [1, 5, 7, 8, 9, 10, 15]
+# ======================================================================
+MIST_FOX_BATTLE = [
+    "................................",
+    "...K.......K.............K......",
+    "..KOK.....KOK...........KRK.....",
+    "..KOK.....KOK..........KRRRKKK..",
+    "..KORK...KROK...........KRKYYYK.",
+    "..KORK...KROK............KKYYYK.",
+    "..KOROK..KROOK............KYYYK.",
+    "..KORRK.KORROK...........KYYYK..",
+    "..KORROKKORROK...........KYYYRK.",
+    "..KORROKOORROOK.........KYYYRRR.",
+    "..KORRROORRRROK.......KKYYYYKRK.",
+    "..KOOOOOOOOOOOK......KYYYYYYKK..",
+    ".KOWWWWOOWWWWKOK.....KYYYYYOOK..",
+    "..KWEEWOOWEEWOK.....KYYYYYOOK...",
+    "..KWEWWOOWEWWOK.....KKYYYYOOK...",
+    "..KWWWWOOWWWWOK....KOOOYOOOK....",
+    "...KOOOOOOOOOKKKKKKOOOOOOOK.....",
+    "...KOOOOKKOOOOOOOOOOOOOOOOK.....",
+    "....KOOOWOOOOOOOOOOOOOOOOK......",
+    ".....KKOOOOOOOOOOOOOOOOOK.......",
+    ".....KOOTTTTTOOOOOOOOOOK........",
+    "....KOTTTTTTTTTOOOOOOOK.........",
+    "...KOOTTTTTTTTTOOOOOOK..........",
+    "...KOOTTTTTTTTTOOOOOK...........",
+    "...KOOOOTTTTTOOOOOOKKK..........",
+    "...KOOOOKKOOOOOOOOOTTTK.........",
+    "...KOTOK..KKKKKKKOTTTTTK........",
+    "..KTTTTTK........KKTTTK.........",
+    "...KKTKK...........KKK..........",
+    ".....K..........................",
+    "................................",
+    "................................",
+]
+
+MIST_FOX_ICON = [
+    "................",
+    "...K......K.....",
+    "..KOK....KOK....",
+    "..KORK..KRORK...",
+    "..KORK..KRORRK..",
+    "..KORRKKKRROKK..",
+    "..KORROOORROKYK.",
+    "..KORRRORRRRYYY.",
+    "..KKWEOOWEOOKOK.",
+    "..KOEWOOEWOOOOO.",
+    "...KOOOOOOOOOOK.",
+    "...KOOTKTTOOOOK.",
+    "....KOTTTTOOOK..",
+    ".....KTTTTKOK...",
+    "................",
+    "................",
+]
+
+# ======================================================================
+# 10 涟漪豚（水）—— 圆滚滚的豚形水兽，身体占画面约 70%；小背鳍、短尾鳍，身下一圈水环托住，头身之间一道 1px 色 5 分隔线
+# 腹白、脸颊粉、水环暗部用蓝；眼睛大而圆
+# 战斗图用色索引：[1, 2, 5, 7, 12, 14]
+# 图标用色索引：  [1, 2, 5, 7, 12, 14]
+# ======================================================================
+RIPPLE_DOLPHIN_BATTLE = [
+    "................................",
+    ".............K..................",
+    "............KNK.................",
+    "............KNK.................",
+    "...........KNNNK................",
+    "..........KNNNNNK...............",
+    "..........KNNNNNNKK.............",
+    "........KKBBBBBBBBBKK...........",
+    ".....WWWWBBBBBBBWWWWBK..........",
+    ".....WEEWBBBBBBBWEEWBBK.........",
+    ".....WEWWBBBBBBBWEWWBBBK........",
+    "....KWWWWBBBBBBBWWWWBBBBK.......",
+    "...PPBBBBBBBBBBBBBBBBBBPPK......",
+    "...KBBBBBBBBBBBBBBBBBBBBBK......",
+    "..KBBKKKKKKKKKKKKKKKKKKKBBK.....",
+    "..KBBBBBBBBBBBBBBBBBBBBBBBK.....",
+    "..KBBBBBBBBBBNBNBBBBBBBBBBK.....",
+    "..KBBBBBBBBBBBWBBBBBBBBBBBK.....",
+    "..KBBBBBBBWWWWWWWWWBBBBBBBK.....",
+    "...KBBBBWWWWWWWWWWWWWBBBBK......",
+    "...KBBBBWWWWWWWWWWWWWBBBNKKKKK..",
+    "....KBBWWWWWWWWWWWWWWWBBKNNNNN..",
+    ".....KBBWWWWWWWWWWWWWBBKKNNNNK..",
+    "......KBWWWWWWWWWWWWWBK.KNNNK...",
+    "...KK.KNNNNNNNNNNNNNNNK.KNNK....",
+    "..KNNKKKKKKKKKKKKKKKKKKKNNK.....",
+    ".KNNNNNNNNNNNNNNNNNNNNNNNNNK....",
+    "..KNNNNNNNNNNNNNNNNNNNNNNNK.....",
+    "...KKKKNNNNNNNNNNNNNNNKKKK......",
+    ".......KKKKKKKKKKKKKKK..........",
+    "................................",
+    "................................",
+]
+
+RIPPLE_DOLPHIN_ICON = [
+    "................",
+    "................",
+    ".......KK.......",
+    "......KKKK......",
+    "....KKBBBBKK....",
+    "...WEBBBWEBBK...",
+    "..PEWBBBEWBBPK..",
+    "..KBKKKKKKKBBK..",
+    ".KBBBBBBBBBBBB..",
+    "..KBBBWWWWBBBK..",
+    "..KBBWWWWWWBBK..",
+    "..KBWWWWWWWWBK..",
+    "...KBWWWWWWBK...",
+    "...KNNKKKKNNK...",
+    "..KNNNNNNNNNNK..",
+    "................",
+]
+
+# ======================================================================
+# 11 灯火鳅（水）—— 宽头六鳃的两栖小兽，S 形侧身，尾尖挂一盏水滴形小灯（黄 + 白高光，仅 3x3），四肢短粗
+# 主体浅蓝、鳃与尾暗部蓝、灯黄；嘴用蓝点，不抢灯光
+# 战斗图用色索引：[1, 2, 5, 7, 10, 12]
+# 图标用色索引：  [1, 2, 5, 7, 10, 12]
+# ======================================================================
+LAMP_LOACH_BATTLE = [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "...K.....KKK.......K......KKK...",
+    "..KNKKKKKBBBKKK.KKKNK....KWWYK..",
+    ".KNNNNNBBBBBBBBKNNNNNK...KYYYK..",
+    "..KNNNNNBBBBBBBNNNNNK....KYYYK..",
+    "...KBBNBBBBBBBBBNKKK......KKK...",
+    "...KBWWWWBBBBBBBBK.K.....KNK....",
+    "..KNBWEEWBBBWWWWBKKNK...KNNK....",
+    ".KNNNWEWWBBBWEEWNNNNNK..KNNK....",
+    "..KNNWWWWBBBWEWWNNNNK...KNKK....",
+    "...KBBNBBBBBWWWWNKKK.....KKBK...",
+    "...KBBBBBBBBBBBBBK.......KBBBK..",
+    "....KBBBBBNNBBBBBBK.....KBBBBBK.",
+    ".....KBBBBBBBBBBBBKK..KKBBBBBBK.",
+    "......KBBBBBBBBBBBBBKKBBBBBBBK..",
+    "......KBBBBBBBBBBBBBBBBBBBBBBK..",
+    "......KBBBBBBBBBBBBBBBBBBBBBBK..",
+    "......KBBBBBBBBBBBBBNNNNNBBBK...",
+    ".....KBBBBBBBBBBBBBNNNNNNNBK....",
+    ".....KBBBKKBBBBBBBBBNNNNNBK.....",
+    ".....KBBBK.KBBBBBBBBBBBBBK......",
+    "......KKK...KKBBBBBBBBBKK.......",
+    ".............KBBBKKKKKK.........",
+    "..............KKK...............",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+]
+
+LAMP_LOACH_ICON = [
+    "................",
+    "........K.......",
+    "........YK......",
+    ".......KYYK.....",
+    ".......KYKK.....",
+    "....KKKBBBBKKK..",
+    "..KKNNBBBBBBNNK.",
+    ".KNNNBBBBBBBBNN.",
+    "...KBEWBBEWBBBK.",
+    "..KKBBBBBBBBBBK.",
+    ".KNNBBBBBBBBBBN.",
+    "..KKNBBBNBBBBNK.",
+    "....KBBNNNNBBK..",
+    ".....KNNNNNNK...",
+    "......KNNNNK....",
+    "................",
+]
+
+# ======================================================================
+# 12 花刃忍（草）—— 直立植物忍者：四片粉花瓣作兜帽、双手各一片绿叶刃，围巾状叶片向右飘，眼部只留一条深蓝横缝
+# 花瓣粉 + 浅绿两层、花心黄、叶刃中绿；不画人脸与五瓣脸谱
+# 战斗图用色索引：[1, 4, 5, 7, 10, 11, 14]
+# 图标用色索引：  [1, 5, 7, 10, 11, 14]
+# ======================================================================
+PETAL_NINJA_BATTLE = [
+    "................................",
+    "..............KP................",
+    "..............KP................",
+    ".............KPPK...............",
+    "............KPPLPK..............",
+    "...........KPPPLPPK.............",
+    "...KKKKKKKKKPPLLPPKKKKKKKKK.....",
+    "..KPPPPPPPPPPPYYPPPPPPPPPPPK....",
+    "...KPPPPPPPPPLLLLPPPPPPPPPK.....",
+    "....KPPPPPPPPLLLLPPPPPPPPK......",
+    ".....KPPPPPPLLLLLLPPPPPPK.......",
+    "......KPPPPPLLLLLLPPPPPK........",
+    ".......KPPPLWLWLWLWPPPPK........",
+    "........KPPEEEEEEEEPPPPK........",
+    ".........KPLLLLLLLLPKPPPK.......",
+    "..........KLLLLLLLLKKKKKPKK.....",
+    ".K........KLKLLLLGLGGGGGGGGGGKK.",
+    ".GKK.....KLLLLLLLLLLGGGGGGGGGGG.",
+    ".KGGKK..KLLLLLLLLLLLLGGGGKGGGGG.",
+    ".KGGGGKKLLLLLLLLLLLLLLKKKKGGGGG.",
+    ".KGGGGGGLLKLLLLLLLLGLLLGKKGGGGK.",
+    ".KGGGGGGGGKLLLLLLLLGGLLLGGGGGGG.",
+    ".KGGGGGGKKKLLLLLLLLKKGLGGGGGGGG.",
+    ".KGGGGGK..KLLLLLLLLK.KKGGGGGGGK.",
+    ".KGGGKK...KLLLLLLLLK...KKGGGGK..",
+    ".KGGK......KLLLLLLK......KGGGK..",
+    ".KGK......KLLLLLLLLK.....KGGGGK.",
+    "..K.......KLLLLLLLLK.....KGKGK..",
+    "..........KLLLKKLLLK......K.K...",
+    ".........KLLLK..KLLLK...........",
+    ".........KLLLK..KLLLK...........",
+    "................................",
+]
+
+PETAL_NINJA_ICON = [
+    "................",
+    "........PK......",
+    "........PK......",
+    ".......KLPK.....",
+    "......KPLPPK....",
+    ".K....KPLPPK....",
+    ".PKKKKPPYLPPKKK.",
+    ".KPPPPPPLLPPPPP.",
+    "...KPPPLLLLPPPK.",
+    "....KPLLLLLLPK..",
+    ".....KLLLLLLK...",
+    "....KLLWLWLLLK..",
+    ".....KEEEEEEK...",
+    ".....KLLLLLLK...",
+    "......KLLLLK....",
+    "................",
+]
+
+# ======================================================================
+# 13 荆星芽（草）—— 矮胖五角星花苞怪：星角由肉质叶片叠成，中心一颗红星核，两侧粗藤手臂 + 两条短根须
+# 叶缘浅绿（先画大一号的浅绿星再盖中绿星）、星核外一圈深绿、藤与根须用棕
+# 战斗图用色索引：[1, 3, 4, 5, 7, 8, 11, 13]
+# 图标用色索引：  [4, 5, 8, 11, 13]
+# ======================================================================
+BRIER_STAR_BATTLE = [
+    "................................",
+    "................K...............",
+    "................GK..............",
+    "................GK..............",
+    "...............KGGK.............",
+    "..............KLGGLK............",
+    "..............KGGGGK............",
+    ".............KLGGGGLK...........",
+    ".............KGGGGGGK...........",
+    "........KKKKKLGGGGGGLKKKKK......",
+    ".....KKKLLLGGGGGGGGGGGGLLLKKK...",
+    "....KGGGGGGGGGDDGDDDGGGGGGGGGK..",
+    ".....KGGGGGGGDGGRRGGDGGGGGGGK...",
+    "......KGGGGGGDGWRRRGDGGGGGGK....",
+    "......KLGGGGDGRRRRRRGDGGGGLK....",
+    ".......KLGGGDGRRRRRRGDGGGLK.....",
+    ".........KLGGDGRRRRGDGGLK.......",
+    ".........KLGGDWEREWGDGGLK.......",
+    "......KKKKLGGGDDGDDDGGGLKKKK....",
+    "....KKMMMMLGGGGGGGGGGGGLMMMMKK..",
+    "...KMMMMMMGGGGGGGGGGGGGGMMMMMMK.",
+    "..KMMMMMMMGGGGGGLGGGGGGGMMMMMMM.",
+    ".KMMMMMMMMGGGGGLKKLGGGGGMMMMMMM.",
+    ".MMMMMKKKKGGGLKK..KKLGGGKKKKMMM.",
+    ".MMMMK...KGLKKK...KKKKLGK...KMM.",
+    ".MMMK...KLKKMMMK.KMMMKKKLK...KM.",
+    ".KKK.....K.KMMMK.KMMMK..K.....K.",
+    "...........KMMMK.KMMMK..........",
+    "...........KMMMK.KMMMK..........",
+    "...........KMMMK.KMMMK..........",
+    "................................",
+    "................................",
+]
+
+BRIER_STAR_ICON = [
+    "................",
+    "........GK......",
+    "........GK......",
+    ".......KGGK.....",
+    "......KKGGKK....",
+    "...KKKLGGGGLKKK.",
+    "..KGGGGGGGGGGGG.",
+    "...KGGGGRRGGGGK.",
+    ".KMKKKGGRRGGKKK.",
+    ".MMMMMGGGGGGMMM.",
+    ".KMMMMGGGGGGMMM.",
+    "..KKKLGMKMMGLKK.",
+    "....KGGMKMMGGK..",
+    ".....KKMKMMKK...",
+    "......KMKMMK....",
+    "................",
+]
+
+# ======================================================================
+# 14 雏羽啾（风）—— 刚破壳的小鸡形鸟：下半身半个蛋壳（壳边不平整），短圆翅膀、头顶两撮绒羽，眼神困倦（上眼皮压下来）
+# 主体黄、绒羽与翅膀浅灰、蛋壳白、喙橙；不用蓝色，避开旧飞鸟系
+# 战斗图用色索引：[1, 5, 7, 9, 10, 15]
+# 图标用色索引：  [1, 5, 7, 9, 10, 15]
+# ======================================================================
+CHICK_SPARROW_BATTLE = [
+    "................................",
+    "...........K........K...........",
+    "..........KTK.......TK..........",
+    "..........KTTK.....KTK..........",
+    "..........KTTK.....KTK..........",
+    "..........KTTTK...KTTK..........",
+    "...........KTTK.K.KTK...........",
+    "...........KTTKKYKKTK...........",
+    "...........KTTTYYYTTK...........",
+    "...........KYTYYYYYTK...........",
+    "..........TYYYYYYYYYTK..........",
+    ".........WWWWYYYYYYWWWK.........",
+    ".........KEEYYYYYYYYEYK.........",
+    "........KTYYYYYYYYYYYYTK........",
+    ".......KTTTYYYYYYYYYYTTTK.......",
+    "......KTTTTTYYYYYYYYTTTTTK......",
+    "......KTTTTTYYYOOOOOTTTTTK......",
+    ".....KWTTTTYYYYOOOYYYTTTTTK.....",
+    "......KKKTWWYYYOOYYYWWTKKK......",
+    "........KWWWWYYOYYYYWWWK........",
+    ".......KWWWWWWWWYWWWWWWWK.......",
+    "......KWWWWWWWWWWWWWWWWWWK......",
+    "......KWWWWWWWWWWWWWWWWWWK......",
+    "......KWWWWWWWWWWWWWWWWWWK......",
+    "......KWWWWWWWWWWWWWWWWWWK......",
+    "......KWWWWWWWWWWWWWWWWWWK......",
+    "......KWWWWWWTTTTTTTWWWWWK......",
+    "......KWWWWTTTTTTTTTTWWWWK......",
+    ".......KWWTTTTTTTTTTTTWWK.......",
+    "........KWWTTTTTTTTTTWWK........",
+    ".........KWWWTTTTTTTWWK.........",
+    "................................",
+]
+
+CHICK_SPARROW_ICON = [
+    "................",
+    "....KTK..KTK....",
+    "....KTTKKTTK....",
+    "....KTTKKTTK....",
+    "....KTTKKTTK....",
+    "....KTTTTTTK....",
+    "....KYTYYTYK....",
+    "....KTYYYTYK....",
+    ".KTWEWYYEWYYTK..",
+    "..KKYYYOYYYYK...",
+    "..KWWYYOOOYWWK..",
+    "..KWWYYOYYYWWK..",
+    ".KWWWWYOYYWWWW..",
+    "..KWWWWWWWWWWK..",
+    "..KWWWWWWWWWWK..",
+    "................",
+]
+
+# ======================================================================
+# 15 夜幕翼（暗）—— 单只月牙翅的暗色蝙蝠：翼展占上半部、身体小、双耳长，眼睛只剩一条粉亮缝；翼膜下缘做翼指锯齿
+# 翼膜粉、身体深蓝——**大面积主体绝不能用 5**（会和描边同色、轮廓消失）
+# 战斗图用色索引：[1, 5, 7, 14]
+# 图标用色索引：  [1, 5, 14]
+# ======================================================================
+NIGHT_WING_BATTLE = [
+    "................................",
+    "................................",
+    "................................",
+    "...........K..........K.........",
+    "..........KEK........KEK........",
+    "........K..KK........KK..K......",
+    ".....KKKPKKKEK......KEKKKPKKK...",
+    "....KPPPPPPPEEK....KEEPPPPPPPK..",
+    "...KPPPPPPPPPEEK..KEEPPPPPPPPPK.",
+    "..KPPPPPPPPPPEEP.KPEEPPPPPPPPPP.",
+    "..KPPPPPPPPPPEEEKKEEEPPPPPPPPPP.",
+    "..KPPPPPPPPPPPEEEEEEPPPPPPPPPPP.",
+    "..KPPPPPPPPPPPEEEEEEPPPPPPPPPPP.",
+    ".KPPPPPPPPPPPPEEEEEEPPPPPPPPPPP.",
+    ".KPPPPPPPPPPPEWEEEEWEPPPPPPPPPP.",
+    ".KPPPPPPPPPPPPPPEEPPPPPPPPPPPPP.",
+    "..KPPPPPPPPPPEEEEEEEEPPPPPPPPPP.",
+    "..KPPPPPPPPPPPEEEEEEPPPPPPPPPPP.",
+    "....KPPPPPPPPPEEEWEEPPPPPPPPPK..",
+    ".....KPPPPPPPEEEEEEEEPPPPPPPK...",
+    ".....KPKKKKKPEEEEEEEEPKKKKKPK...",
+    ".....KPK....KEEEEEEEEK....KPK...",
+    "......K.....KEEEEEEEEK.....K....",
+    "............KEEEEEEEEK..........",
+    ".............KEEEEEEK...........",
+    ".............KEEEEEEK...........",
+    "..............KEEEEK............",
+    "...............KEKK.............",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+]
+
+NIGHT_WING_ICON = [
+    "................",
+    ".....KEK..KEK...",
+    "......KK..KK....",
+    "......KE.KEK....",
+    "...KKKKEKKEKKKK.",
+    "..KPPPPEEEEPPPP.",
+    ".KPPPPPEEEEPPPP.",
+    ".KPPPPPPEPPPPPP.",
+    ".KPPPPPEEEEPPPP.",
+    ".KPPPPPEEEEPPPP.",
+    "..KPPPPEEEEPPPP.",
+    "..KPPKKEEEEKKPP.",
+    "..KPK.KEEEEK.KP.",
+    "..KPK..KEEK..KP.",
+    "................",
+    "................",
+]
+
+# ======================================================================
+# 16 绒医团（光）—— 粉色绒球医护兽：头戴白色小医护帽（帽檐浅灰），胸前一块浅绿心形贴布（不用红十字），四肢短小
+# 绒毛用粉 + 沿外缘一圈浅灰茸点表现；帽与眼睛白、心形浅绿
+# 战斗图用色索引：[1, 5, 7, 11, 14, 15]
+# 图标用色索引：  [1, 5, 7, 11, 14, 15]
+# ======================================================================
+MEDIC_FLUFF_BATTLE = [
+    "................................",
+    ".............KKKKK..............",
+    "...........KKWWWWWKK............",
+    "..........KWWWWWWWWWK...........",
+    ".........KWWWWWWWWWWWK..........",
+    "........KWWWWWWWWWWWWWK.........",
+    "........KWWWWWWWWWWWWWK.........",
+    "........KWWWWWWWWWWWWWK.........",
+    ".......KTTTTTTTTTTTTTTTK........",
+    ".......KTTTTTTTTTTTTTTTK........",
+    "........KKKKPPPPPPPKKKK.........",
+    ".........KPPPTPPPTPPPK..........",
+    ".......KKTPPPPPPPPPPPTKK........",
+    "......KPWWWWPPPPPWWWWPPPK.......",
+    "......KPWEEWPPPPPWEEWPPPK.......",
+    ".....KTPWEWWPPPPPWEWWPPPTK......",
+    ".....KPPWWWWPPPPPWWWWPPPPK......",
+    "....KPPPPPPPPPPPPPPPPPPPPPK.....",
+    "....KPPPPPPPPPKKPPPPPPPPPPK.....",
+    "....KTPPPPPPPPPPPPPPPPPPPTK.....",
+    "....KPPPPPPPPPLPLPPPPPPPPPK.....",
+    "....KPPPPPPPPLLLLLPPPPPPPPK.....",
+    "...KWWWPPPPPPPLLLPPPPPPPWWWK....",
+    "..KWWWWPPPPPPPPLPPPPPPPPWWWWK...",
+    "..KWWWWPPPPPPPPPPPPPPPPPWWWWK...",
+    "..KWWWWPPPPPPPPPPPPPPPPPWWWWK...",
+    ".KWWWWKKKTPPPPPPPPPPPTKKKWWWWK..",
+    ".KWWWK.KWWWWWTPPPTWWWWWK.KWWWK..",
+    ".KWWWK.KWWWWWPPPPPWWWWWK.KWWWK..",
+    "..KKK..KWWWWWKKKKKWWWWWK..KKK...",
+    "........KKKKK.....KKKKK.........",
+    "................................",
+]
+
+MEDIC_FLUFF_ICON = [
+    "................",
+    "......KKKK......",
+    ".....KWWWWK.....",
+    "....KWWWWWWK....",
+    "...KWWWWWWWWK...",
+    "....KWTPPTWK....",
+    "...KPPPPPPPPK...",
+    "..KPTPPPPPPTPK..",
+    "..KPEWPPEWPPPK..",
+    ".KPTPPPPPPPPTP..",
+    "..KPPPPLLPPPPK..",
+    "..KPPPLLLLPPPK..",
+    "..KPTPPPPPPTPK..",
+    "...KPPPPPPPPK...",
+    "....KKTPPTKK....",
+    "................",
+]
+
+# ======================================================================
+# 17 导线蛇（雷）—— 盘成 8 字形的深色电蛇：头抬起、吐黄信，尾端是双插脚插头，身上缠两段黄色电弧（只在轮廓外）
+# 主体深蓝 + 头顶浅灰亮部、插头浅灰、插脚与电弧黄；电弧不盖住身体
+# 战斗图用色索引：[1, 5, 7, 10, 15]
+# 图标用色索引：  [1, 5, 7, 10, 15]
+# ======================================================================
+WIRE_SNAKE_BATTLE = [
+    "................................",
+    "..............................K.",
+    ".............................KY.",
+    ".K........KKK...............KYK.",
+    ".YK.....KKTTTKK............KYK..",
+    ".KYK...KETTTTTEK............KYK.",
+    "..KYK.KEWWWWWWWWK............KY.",
+    ".KYK..KEWEEWWEEWK.............K.",
+    ".YK...KEWEWWWEWWK.KKKKKKK.......",
+    ".K....KEWWWWWWWWKKEEEEEEEK......",
+    "......KEEEEEEEEEKEEEEEEEEEK.....",
+    ".......KEEEEEEEKEEEEEEEEEEEK....",
+    ".......KEEYEEEEEEEEEEEEEEEEEK...",
+    "........KEYEEEEEEEETTTTTEEEEEK..",
+    ".......KKEEEEEEEEEEKKKKKEEEEEK..",
+    "......KEEEEEEEEEEEEEK...KEEEEK..",
+    "......KEEEEEEEEEEEEEK...KEEEEK..",
+    ".....KEEEEEEEEEEEEEEEK..KEEEEK..",
+    "....KEEEEEEEEEEEEEEEEEKKEEEEEK..",
+    "....KEEEEEKKKKEEEEEEEEKEEEEEEK..",
+    "....KEEEEEK...KEEEEEEEEEEEEEKK..",
+    "....KEEEEEK....KEEEEEEEETTTTTTK.",
+    "....KEEEEEK.....KEEEEEEETTTTTTK.",
+    "....KEEEEEK.....KEEEEEEETTTTTTK.",
+    "....KEEEEEEKKKKKEEEEEEKKTTTTTTK.",
+    ".....KEEEEEEEEEEEEEEEK.KTTTTTTK.",
+    "......KEEEEEEEEEEEEEK...KYKKYK..",
+    "......KEEEEEEEEEEEEEK...KYKKYK..",
+    ".......KKEEEEEEEEEKK....KYKKYK..",
+    ".........KEEEEEEEK.......K..K...",
+    "................................",
+    "................................",
+]
+
+WIRE_SNAKE_ICON = [
+    "................",
+    "......KK........",
+    ".....KTTK.....K.",
+    "....WEEWEK...KY.",
+    "...KEWEEEEK...K.",
+    "....KEEEEK......",
+    "...KEEEEEEK.....",
+    "..KEEEEEEEEK....",
+    ".KEEEEKEEEEEK...",
+    ".KEEEEKKKEEEKK..",
+    ".KEEEEK.EETTTTK.",
+    ".KEEEEEKEETTTTK.",
+    "..KEEEEEEETTTTK.",
+    "...KEEEEEEKYKYK.",
+    "................",
+    "................",
+]
+
+# ======================================================================
+# 18 雷云团（雷）—— 团状雷云：四个圆叠成云体，云顶伸两根黄色短雷角，云身一道白色高光，云底压一行深蓝暗部，底下 3 滴雨
+# 云浅灰、雷角黄、雨点浅蓝；不画王冠、不画人脸，靠「云 + 雷角 + 雨点」识别
+# 战斗图用色索引：[1, 5, 7, 10, 12, 15]
+# 图标用色索引：  [1, 5, 7, 10, 12, 15]
+# ======================================================================
+STORM_CLOUD_BATTLE = [
+    "................................",
+    "...........KK.....KK............",
+    "..........KYYK...KYYK...........",
+    ".........KYKK.....KKYK..........",
+    "..........KYK.....KYK...........",
+    ".........KYK..KKK..KYK..........",
+    "........KYKKKKTTTKKKKYK.........",
+    "........KKYTTTTTTTTTYKK.........",
+    ".......KYKTWWWTTTTTTTKYK........",
+    ".....KKKTWWTTTTTTTTTTTTKKK......",
+    "....KTTTWTTTTTTTTTTTTTTTTTK.....",
+    "...KTTTTTTTTTTTTTTTTTTTTTTTK....",
+    "..KTTTTTTTTTTTTTTTTTTTTTTTTTK...",
+    "..KTTTTWWWWTTTTTTTTWWWWTTTTTK...",
+    ".KTTTTTWEEWTTTTTTTTWEEWTTTTTTK..",
+    ".KTTTTTWEWWTTTTTTTTWEWWTTTTTTK..",
+    ".KTTTTTWWWWTTTTTTTTWWWWTTTTTTK..",
+    "..KTTTTTTTTTTTTTTTTTTTTTTTTTK...",
+    "..KTTTTTTTTTTTTTTTTTTTTTTTTTK...",
+    "...KTTTTTTTTTTTTTTTTTTTTTTTK....",
+    "....KTTTTTTTTTTTTTTTTTTTTTK.....",
+    ".....KKKTTTTTTTTTTTTTTTKKK......",
+    "........KKTTTTTTTTTTTKK.........",
+    "..........KKKKKKKKKKK...........",
+    "................................",
+    "................................",
+    "......B.................B.......",
+    ".....BBB.......B.......BBB......",
+    "......B.......BBB.......B.......",
+    "...............B................",
+    "................................",
+    "................................",
+]
+
+STORM_CLOUD_ICON = [
+    "................",
+    ".....KK...KK....",
+    "....KYYK.KYYK...",
+    ".....KK...KK....",
+    "....KYKKKKKYK...",
+    "...KYKTTTTTKYK..",
+    "...KKYTWWTTYKK..",
+    "..KTTTWTTTTTTTK.",
+    ".KTWETTTTWETTTT.",
+    ".KTEWTTTTEWTTTT.",
+    ".KTTTTTTTTTTTTT.",
+    "..KTTTTTTTTTTTK.",
+    "...KKTTTTTTTKK..",
+    ".....KKKKKKKB...",
+    "...........BBB..",
+    "................",
+]
+
+
 #: 精灵 id -> (名称, 属性, 战斗图字符画, 图标字符画)
 _CREATURES = [
     (1, "小火狮", "火", FIRE_LION_BATTLE, FIRE_LION_ICON),
@@ -537,6 +1141,16 @@ _CREATURES = [
     (6, "三头犬", "暗", DARK_CERBERUS_BATTLE, DARK_CERBERUS_ICON),
     (7, "不死鸟", "火", PHOENIX_BATTLE, PHOENIX_ICON),
     (8, "闪电小子", "雷", THUNDER_KID_BATTLE, THUNDER_KID_ICON),
+    (9, "雾尾狐", "火", MIST_FOX_BATTLE, MIST_FOX_ICON),
+    (10, "涟漪豚", "水", RIPPLE_DOLPHIN_BATTLE, RIPPLE_DOLPHIN_ICON),
+    (11, "灯火鳅", "水", LAMP_LOACH_BATTLE, LAMP_LOACH_ICON),
+    (12, "花刃忍", "草", PETAL_NINJA_BATTLE, PETAL_NINJA_ICON),
+    (13, "荆星芽", "草", BRIER_STAR_BATTLE, BRIER_STAR_ICON),
+    (14, "雏羽啾", "风", CHICK_SPARROW_BATTLE, CHICK_SPARROW_ICON),
+    (15, "夜幕翼", "暗", NIGHT_WING_BATTLE, NIGHT_WING_ICON),
+    (16, "绒医团", "光", MEDIC_FLUFF_BATTLE, MEDIC_FLUFF_ICON),
+    (17, "导线蛇", "雷", WIRE_SNAKE_BATTLE, WIRE_SNAKE_ICON),
+    (18, "雷云团", "雷", STORM_CLOUD_BATTLE, STORM_CLOUD_ICON),
 ]
 
 #: 精灵 id -> 战斗图 SpriteMatrix

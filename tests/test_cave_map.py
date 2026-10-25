@@ -229,22 +229,29 @@ class CaveEncounterTableTest(unittest.TestCase):
     """遇敌表（《数值设定.md》§10.4 区域 3）。"""
 
     def test_table_matches_document(self):
-        """§10.4 区域 3 洞窟：三头犬 8~12/30、独角兽 9~13/25、小狮鹫 7~10/20、
-        闪电小子 8~11/20、不死鸟 15~18/5。"""
+        """洞窟遇敌表（《02-新增10只精灵规划.md》§8.2）：
+        三头犬 8~12/20、独角兽 9~13/18、小狮鹫 7~10/12、闪电小子 8~11/12、
+        不死鸟 15~18/5、灯火鳅 8~12/8、荆星芽 10~14/8、夜幕翼 9~13/8、
+        绒医团 9~12/5、雷云团 12~16/4。"""
         enc = map_data.encounters_of(CAVE_MAP)
         self.assertIsNotNone(enc)
         got = {int(r["species_id"]): (int(r["level_min"]), int(r["level_max"]),
                                       int(r["weight"]))
                for r in enc["table"]}
         expected = {
-            6: (8, 12, 30),    # 三头犬
-            5: (9, 13, 25),    # 独角兽
-            4: (7, 10, 20),    # 小狮鹫
-            8: (8, 11, 20),    # 闪电小子
+            6: (8, 12, 20),    # 三头犬
+            5: (9, 13, 18),    # 独角兽
+            4: (7, 10, 12),    # 小狮鹫
+            8: (8, 11, 12),    # 闪电小子
             7: (15, 18, 5),    # 不死鸟
+            11: (8, 12, 8),    # 灯火鳅
+            13: (10, 14, 8),   # 荆星芽
+            15: (9, 13, 8),    # 夜幕翼
+            16: (9, 12, 5),    # 绒医团
+            18: (12, 16, 4),   # 雷云团
         }
         self.assertEqual(got, expected)
-        self.assertEqual(len(enc["table"]), 5, "遇敌表应当正好 5 条")
+        self.assertEqual(len(enc["table"]), 10, "遇敌表应当正好 10 条")
 
     def test_weights_sum_to_100(self):
         enc = map_data.encounters_of(CAVE_MAP)

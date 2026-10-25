@@ -44,7 +44,7 @@ class BakeSizeTest(unittest.TestCase):
         for direction in ("down", "up", "left", "right"):
             for frame in (0, 1):
                 self.assertIn(f"player_{direction}_{frame}", names)
-        for sid in range(1, 9):
+        for sid in range(1, 19):
             self.assertIn(f"creature_{sid}_battle", names)
             self.assertIn(f"creature_{sid}_icon", names)
 
