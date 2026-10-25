@@ -94,7 +94,7 @@ class PartyTest(unittest.TestCase):
 
 
 class StorageExchangeTest(unittest.TestCase):
-    """队伍 <-> 仓库 互换（README §8.6 缺口）。
+    """队伍 <-> 仓库 互换（原先 README 记录的缺口，已补齐）。
 
     硬规则由数据层保证：
 
