@@ -44,7 +44,7 @@ from src.scenes.scene_base import Scene
 from src.ui import sound, text
 from src.ui.damage_number import DamageNumberGroup
 from src.ui.transition import Fade
-from src.ui.widgets import MenuList, draw_status_box
+from src.ui.widgets import HpBarAnimator, MenuList, draw_status_box
 
 # ==================================================================== 数值
 #: §5.7 胜利经验 = WIN_EXP_BASE + WIN_EXP_PER_LEVEL × 敌方等级
@@ -115,6 +115,47 @@ PARTY_HINT_Y = 202
 #: 地平线
 HORIZON_Y = 88
 
+# ==================================================================== 演出效果（纯绘制层）
+#
+# 铁律：**演出只影响「绘制」，绝不影响「状态机」和「输入判定」**。
+#
+# 做法：进入场景时记一个帧计数器，每帧 +1；draw() 里用计数器算绘制偏移 /
+# 透明度 / 缩放。update() 里的状态流转逻辑**一行都没有改**，
+# 所以 INTRO -> COMMAND -> SKILL_SELECT 的既有测试全部照旧通过，
+# 玩家也不会因为等动画播完而觉得卡。
+
+#: ① 入场动画总帧数（60fps，16 帧 ≈ 0.27 秒）
+INTRO_FRAMES = 16
+#: ① 入场起始偏移：敌方从右上滑入、我方从左下滑入
+INTRO_FROM = {"enemy": (36, -26), "player": (-32, 26)}
+
+#: ② 受击反馈的逐帧水平位移（像素；敌方被推向右，我方取反）
+#: 0~2 帧 = 后移 2px 推出，3~7 帧 = 抖动回归，8 帧之后 = 完全归位
+HIT_OFFSETS = (2, 3, 2, 1, -1, 2, -2, 1, 0, 0, 0, 0)
+#: ② 受击反馈总帧数（= 位移表长度）
+HIT_FRAMES = len(HIT_OFFSETS)
+#: ② 受击闪烁：前几帧里隔帧不画精灵
+HIT_FLASH_FRAMES = 4
+
+#: ④ 震屏总帧数（60fps）
+SHAKE_FRAMES = 8
+#: ④ 震屏最大位移（像素）
+SHAKE_MAX = 2
+#: ④ 震屏逐帧位移（水平 / 垂直）
+SHAKE_PATTERN_X = (2, -2, 1, -1, 1, -1, 0, 0)
+SHAKE_PATTERN_Y = (0, 1, 0, -1, 0, 1, 0, -1)
+
+#: ⑤ 命中粒子：个数 / 寿命（帧）/ 渐隐帧数
+PARTICLE_COUNT = 5
+PARTICLE_FRAMES = 12
+PARTICLE_FADE = 4
+#: ⑤ 粒子飞散方向（**固定表，不用随机数**）
+#: 战斗的随机源是注入的 seeded RNG，粒子去抽它会改变伤害骰子的结果，
+#: 所以这里用写死的方向表，保证战斗可复现。
+#: 速度给得比"看着自然"稍快一点：飘字圆圈半径 9（加描边 10），
+#: 粒子起步就在圆圈里，速度太慢前几帧会被圆圈挡住看不见。
+PARTICLE_DIRS = ((-3, -1), (0, -3), (3, -1), (3, 2), (-3, 2))
+
 
 # ==================================================================== 规则函数
 def victory_exp(enemy_level: int) -> int:
@@ -148,6 +189,58 @@ def escape_chance(my_spd: int, enemy_spd: int) -> float:
     if raw > RUN_MAX:
         return RUN_MAX
     return raw
+
+
+class HitParticle:
+    """命中时飞散的小点（纯装饰，寿命结束即被回收）。
+
+    参数
+    ----
+    x, y
+        出生点（被击中的精灵身上）。
+    vx, vy
+        每帧位移。
+    color
+        粒子颜色（招式属性主色）。
+    bg_color
+        渐隐时混进去的背景色（精灵身后的底色）。
+    """
+
+    __slots__ = ("x", "y", "vx", "vy", "age", "color", "bg_color")
+
+    def __init__(self, x: int, y: int, vx: int, vy: int,
+                 color: int, bg_color: int):
+        self.x = int(x)
+        self.y = int(y)
+        self.vx = int(vx)
+        self.vy = int(vy)
+        self.age = 0
+        self.color = int(color)
+        self.bg_color = int(bg_color)
+
+    def update(self) -> bool:
+        """推进一帧。
+
+        返回
+        ----
+        bool
+            True 表示还活着；False 表示寿命结束、该被回收了。
+        """
+        self.age += 1
+        self.x += self.vx
+        self.y += self.vy
+        if self.age > PARTICLE_FRAMES // 2:
+            self.vy += 1          # 后半程轻微下坠
+        return self.age < PARTICLE_FRAMES
+
+    def draw(self, offset: tuple[int, int] = (0, 0)) -> None:
+        """画这个小点（最后几帧渐隐到背景色）。"""
+        ox = int(offset[0]) if offset else 0
+        oy = int(offset[1]) if offset else 0
+        color = self.color
+        if self.age >= PARTICLE_FRAMES - PARTICLE_FADE:
+            color = self.bg_color
+        pyxel.circ(self.x + ox, self.y + oy, 1, color)
 
 
 class BattleScene(Scene):
@@ -222,6 +315,20 @@ class BattleScene(Scene):
         #: 转场（战败淡出用）
         self.fade = Fade()
 
+        # ---------------------------------------------------------- 演出效果
+        #: ① 入场动画帧计数器（纯绘制层）
+        self.intro_frame = 0
+        #: ② 受击反馈帧计数（enemy / player）；-1 = 当前没有受击演出
+        self._hit_age = {"enemy": -1, "player": -1}
+        #: ④ 震屏帧计数；-1 = 当前不震
+        self._shake_age = -1
+        #: ⑤ 命中粒子（寿命结束会被回收，列表不会无限累积）
+        self._particles: list[HitParticle] = []
+        #: ③ 血条缓动（只维护显示值，**绝不写回** Creature.hp）
+        self._hp_anim = HpBarAnimator()
+        #: 血条缓动对应的「我方出战精灵」（换人时重置显示值）
+        self._hp_owner = None
+
         #: 本回合双方是否已经行动过（决定行动顺序与回合结束）
         self._enemy_acted = False
         self._player_acted = False
@@ -248,6 +355,8 @@ class BattleScene(Scene):
         self.state = self.INTRO
         self.intro_text = f"野生的{self.enemy.display_name}出现了！"
         self._build_command_menu()
+        # 重置演出计时器（① 入场动画从头播）
+        self._reset_effects()
         # 战斗 BGM（T8b）：顶掉地面的 field / cave 音乐
         sound.play_bgm("battle")
 
@@ -260,6 +369,8 @@ class BattleScene(Scene):
     # ================================================================ 每帧
     def update(self, inp) -> None:
         """每帧逻辑更新。"""
+        # 演出计时器先推进（**只影响绘制**，不参与状态流转与输入判定）
+        self._update_effects()
         self.numbers.update()
         if self.fade.is_active:
             self.fade.update()
@@ -291,13 +402,170 @@ class BattleScene(Scene):
     def draw(self) -> None:
         """画整个战斗画面。"""
         self._draw_background()
-        self._draw_creature(self.enemy, ENEMY_SPRITE_X, ENEMY_SPRITE_Y)
-        self._draw_creature(self.active, PLAYER_SPRITE_X, PLAYER_SPRITE_Y)
+        self._draw_creature(self.enemy, ENEMY_SPRITE_X, ENEMY_SPRITE_Y, "enemy")
+        self._draw_creature(self.active, PLAYER_SPRITE_X, PLAYER_SPRITE_Y,
+                            "player")
         self._draw_status_boxes()
         self._draw_panel()
-        self.numbers.draw()
+        self._draw_particles()
+        self.numbers.draw(self.shake_offset())
         self.fade.draw()
         self._draw_defeat_text()
+
+    # ================================================================ 演出效果
+    # 这一整节都只影响「绘制」：状态机（INTRO -> COMMAND -> ...）和
+    # 输入判定一行都没动，演出只是叠在画面上的一层。
+
+    def _reset_effects(self) -> None:
+        """重置所有演出计时器（进战斗 / 重新进战斗时调用）。"""
+        self.intro_frame = 0
+        self._hit_age = {"enemy": -1, "player": -1}
+        self._shake_age = -1
+        self._particles = []
+        self._hp_anim.reset()
+        self._hp_owner = None
+
+    def _update_effects(self) -> None:
+        """推进所有演出计时器（纯绘制层，不影响状态机 / 输入判定）。"""
+        # ① 入场动画
+        if self.intro_frame < INTRO_FRAMES:
+            self.intro_frame += 1
+        # ② 受击反馈
+        for side in ("enemy", "player"):
+            age = self._hit_age.get(side, -1)
+            if age >= 0:
+                age += 1
+                self._hit_age[side] = -1 if age >= HIT_FRAMES else age
+        # ④ 震屏
+        if self._shake_age >= 0:
+            age = self._shake_age + 1
+            self._shake_age = -1 if age >= SHAKE_FRAMES else age
+        # ⑤ 粒子（寿命结束就回收，列表不会无限增长）
+        if self._particles:
+            alive: list[HitParticle] = []
+            for particle in self._particles:
+                if particle.update():
+                    alive.append(particle)
+            self._particles = alive
+        # ③ 血条缓动（只读真实 HP）
+        self._sync_hp_bars()
+
+    def _sync_hp_bars(self) -> None:
+        """把两侧真实 HP 喂给血条缓动器（**只读**，不写回 Creature.hp）。"""
+        if self.active is not self._hp_owner:
+            # 换人：显示值直接跳到新精灵的真实 HP，不做缓动
+            self._hp_anim.reset("player")
+            self._hp_owner = self.active
+        self._hp_anim.sync("enemy", self.enemy.hp)
+        if self.active is not None:
+            self._hp_anim.sync("player", self.active.hp)
+
+    # ------------------------------------------------------------ 查询
+    def intro_offset(self, side: str) -> tuple[int, int]:
+        """① 入场动画的绘制偏移（帧数走完后恒为 (0, 0)）。"""
+        if self.intro_frame >= INTRO_FRAMES:
+            return (0, 0)
+        t = self.intro_frame / float(INTRO_FRAMES)
+        ease = 1.0 - (1.0 - t) ** 2        # 缓出：先快后慢
+        fx, fy = INTRO_FROM.get(side, (0, 0))
+        return (int(round(fx * (1.0 - ease))), int(round(fy * (1.0 - ease))))
+
+    def hit_offset(self, side: str) -> tuple[int, int]:
+        """② 受击反馈的绘制偏移（结束后恒为 (0, 0)）。"""
+        age = self._hit_age.get(side, -1)
+        if age < 0 or age >= HIT_FRAMES:
+            return (0, 0)
+        value = HIT_OFFSETS[age]
+        if side == "player":
+            value = -value               # 我方被推向左
+        return (value, 0)
+
+    def creature_offset(self, side: str) -> tuple[int, int]:
+        """一只精灵当前的绘制偏移（入场 + 受击）。"""
+        ix, iy = self.intro_offset(side)
+        hx, hy = self.hit_offset(side)
+        return (ix + hx, iy + hy)
+
+    def platform_offset(self, side: str) -> tuple[int, int]:
+        """站台（精灵脚下的椭圆影子）的绘制偏移。
+
+        站台跟着**该侧精灵的入场偏移**一起滑入：否则入场那 16 帧里
+        精灵在滑、影子钉在原地，看起来像精灵悬在影子上面。
+        震屏时站台跟着一起晃。
+
+        注意：这里只叠加入场偏移，**不含受击位移** —— 受击时精灵单独
+        后移弹回、影子留在原地，正是"被打得往后一顿"的观感。
+        """
+        ix, iy = self.intro_offset(side)
+        sx, sy = self.shake_offset()
+        return (ix + sx, iy + sy)
+
+    def shake_offset(self) -> tuple[int, int]:
+        """④ 震屏偏移（结束后恒为 (0, 0)）。"""
+        age = self._shake_age
+        if age < 0 or age >= SHAKE_FRAMES:
+            return (0, 0)
+        return (SHAKE_PATTERN_X[age % len(SHAKE_PATTERN_X)],
+                SHAKE_PATTERN_Y[age % len(SHAKE_PATTERN_Y)])
+
+    def hp_display(self, side: str) -> int:
+        """③ 血条当前该画的 HP（缓动显示值；收敛后 == 真实 HP）。"""
+        if side == "player":
+            if self.active is None:
+                return 0
+            return self._hp_anim.display("player", self.active.hp)
+        return self._hp_anim.display("enemy", self.enemy.hp)
+
+    @property
+    def particles(self) -> list[HitParticle]:
+        """⑤ 当前还活着的命中粒子。"""
+        return self._particles
+
+    # ------------------------------------------------------------ 触发
+    def trigger_hit_effect(self, defender, info) -> None:
+        """②⑤ 受击演出：闪烁 + 抖动 + 后移 + 粒子（克制时额外震屏）。
+
+        由 :meth:`_apply_attack` 调用；也可以单独调用（测试用）。
+        """
+        if defender is None:
+            return
+        side = "player" if defender is self.active else "enemy"
+        self._hit_age[side] = 0
+        base_x, base_y = ((PLAYER_SPRITE_X, PLAYER_SPRITE_Y)
+                          if side == "player"
+                          else (ENEMY_SPRITE_X, ENEMY_SPRITE_Y))
+        dx, dy = self.creature_offset(side)
+        color = self._hit_color(info)
+        bg = palette.GREEN if side == "player" else palette.LIGHT_BLUE
+        for i in range(PARTICLE_COUNT):
+            vx, vy = PARTICLE_DIRS[i % len(PARTICLE_DIRS)]
+            self._particles.append(
+                HitParticle(base_x + 16 + dx, base_y + 16 + dy,
+                            vx, vy, color, bg))
+        # ④ 克制命中 -> 震屏
+        if self._is_super_effective(info, defender):
+            self.trigger_shake()
+
+    def trigger_shake(self) -> None:
+        """④ 震屏（克制命中时调用）。"""
+        self._shake_age = 0
+
+    @staticmethod
+    def _is_super_effective(info, defender) -> bool:
+        """这次命中是不是克制（系数 > 1）。"""
+        try:
+            return multiplier(info.type, defender.species.type) > 1.0
+        except Exception:
+            return False
+
+    @staticmethod
+    def _hit_color(info) -> int:
+        """⑤ 粒子颜色：招式属性主色；「无」属性用黄色。"""
+        type_name = str(getattr(info, "type", "") or "")
+        color = palette.color_of(type_name)
+        if color == palette.GRAY:
+            color = palette.YELLOW
+        return color
 
     # ================================================================ 演出文字
     def _say(self, msg: str, then=None, state: str | None = None) -> None:
@@ -539,6 +807,8 @@ class BattleScene(Scene):
             )
             actual = defender.take_damage(dmg)
             self._spawn_damage(defender, actual, defender is self.active)
+            # ②⑤ 受击演出（纯绘制层）；克制命中时额外 ④ 震屏
+            self.trigger_hit_effect(defender, info)
             # 命中音效（T8b）：我方受击 -> hurt，打中敌人按克制系数选 hit / hit_super
             self._play_hit_sound(defender, info)
             self._say(f"{defender.display_name} 受到了 {actual} 点伤害！",
@@ -844,37 +1114,73 @@ class BattleScene(Scene):
 
     # ================================================================ 绘制
     def _draw_background(self) -> None:
-        """背景：天空 + 地面 + 两个站台。"""
+        """背景：天空 + 地面 + 两个站台（④ 震屏时整体跟着晃）。"""
+        sx, sy = self.shake_offset()
         pyxel.cls(palette.LIGHT_BLUE)
-        pyxel.rect(0, HORIZON_Y, SCREEN_W, SCREEN_H - HORIZON_Y, palette.GREEN)
-        pyxel.rect(0, HORIZON_Y, SCREEN_W, 2, palette.DARK_GREEN)
-        # 敌方站台
-        pyxel.elli(136, 49, 60, 18, palette.DARK_GREEN)
-        pyxel.elli(140, 54, 52, 12, palette.GREEN)
+        top = HORIZON_Y + sy
+        # 地面画高 4px，震屏时上下移动也不会露出缝
+        pyxel.rect(0, top, SCREEN_W, SCREEN_H - HORIZON_Y + 4, palette.GREEN)
+        pyxel.rect(0, top, SCREEN_W, 2, palette.DARK_GREEN)
+        # 敌方站台（跟着敌方精灵一起滑入，震屏时一起晃）
+        ex, ey = self.platform_offset("enemy")
+        pyxel.elli(136 + ex, 49 + ey, 60, 18, palette.DARK_GREEN)
+        pyxel.elli(140 + ex, 54 + ey, 52, 12, palette.GREEN)
         # 我方站台
-        pyxel.elli(10, 113, 60, 18, palette.DARK_GREEN)
-        pyxel.elli(14, 118, 52, 12, palette.GREEN)
+        px, py = self.platform_offset("player")
+        pyxel.elli(10 + px, 113 + py, 60, 18, palette.DARK_GREEN)
+        pyxel.elli(14 + px, 118 + py, 52, 12, palette.GREEN)
 
-    def _draw_creature(self, creature: Creature, x: int, y: int) -> None:
-        """画一只精灵的 32x32 战斗图（倒下的不画）。"""
+    def _draw_creature(self, creature: Creature, x: int, y: int,
+                       side: str | None = None) -> None:
+        """画一只精灵的 32x32 战斗图（倒下的不画）。
+
+        绘制偏移的来源（都只在绘制层生效）：
+
+        - ① 入场动画；
+        - ② 受击闪烁 / 抖动 / 后移；
+        - ④ 震屏。
+        """
         if creature is None or creature.fainted:
             return
+        if side is None:
+            side = "enemy" if int(x) == ENEMY_SPRITE_X else "player"
+        if self._hit_blink(side):
+            return                       # ② 受击闪烁：这一帧不画精灵
         try:
             img = sprite_base.get(f"creature_{creature.species_id}_battle")
         except KeyError:
             return
-        pyxel.blt(x, y, img, 0, 0, 32, 32, colkey=0)
+        dx, dy = self.creature_offset(side)
+        sx, sy = self.shake_offset()
+        pyxel.blt(x + dx + sx, y + dy + sy, img, 0, 0, 32, 32, colkey=0)
+
+    def _hit_blink(self, side: str) -> bool:
+        """② 受击闪烁：前 HIT_FLASH_FRAMES 帧里隔帧不画精灵。"""
+        age = self._hit_age.get(side, -1)
+        if age < 0 or age >= HIT_FLASH_FRAMES:
+            return False
+        return (age % 2) == 1
+
+    def _draw_particles(self) -> None:
+        """⑤ 画命中粒子。"""
+        offset = self.shake_offset()
+        for particle in self._particles:
+            particle.draw(offset)
 
     def _draw_status_boxes(self) -> None:
         """画双方信息框（§13.1）。"""
-        draw_status_box(ENEMY_BOX_X, ENEMY_BOX_Y, self.enemy.display_name,
-                        self.enemy.level, self.enemy.hp, self.enemy.hp_max,
-                        self.enemy.mp, self.enemy.mp_max)
+        sx, sy = self.shake_offset()
+        draw_status_box(ENEMY_BOX_X + sx, ENEMY_BOX_Y + sy,
+                        self.enemy.display_name, self.enemy.level,
+                        self.enemy.hp, self.enemy.hp_max,
+                        self.enemy.mp, self.enemy.mp_max,
+                        hp_display=self.hp_display("enemy"))
         if self.active is not None:
-            draw_status_box(PLAYER_BOX_X, PLAYER_BOX_Y,
+            draw_status_box(PLAYER_BOX_X + sx, PLAYER_BOX_Y + sy,
                             self.active.display_name, self.active.level,
                             self.active.hp, self.active.hp_max,
-                            self.active.mp, self.active.mp_max)
+                            self.active.mp, self.active.mp_max,
+                            hp_display=self.hp_display("player"))
 
     def _draw_panel(self) -> None:
         """画底部面板（§13.1：(0, 150) 240×66）。"""

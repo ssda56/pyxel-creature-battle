@@ -3,19 +3,30 @@
 **本文件是全项目唯一允许出现字体路径的地方**（验收标准 7）。
 **所有中文必须经由本模块渲染**，禁止在别处直接调用 `pyxel.text` 画中文。
 
-字体为什么不用素材目录里的 BDF / TTF
-------------------------------------
-《pyxel官方示例训练素材》examples/assets 里的 `umplus_j12r.bdf` /
-`PixelMplus12-Regular.ttf` 是**日文字体，缺简体字形**，"精灵对战" 会渲染成
-"精?小游"（已实测）。因此本项目只认 Windows 系统字体，按下列顺序回退：
+字体选择
+--------
+首选**随项目分发的点阵字体** Ark Pixel 12px（OFL 1.1，见同目录 OFL.txt）。
+它是为 12px 手工点阵设计的中文像素字体，笔画落在整像素上，因此在
+240x216 这个分辨率下比矢量黑体清晰得多——系统黑体在 12px 会把横竖笔画糊在一起
+（实测同一段文字，simhei 的标题渲染出粘连和块状伪影）。
 
-1. 项目根 `assets/fonts/simhei.ttf`（可随项目分发自己的字体）
-2. `C:\\Windows\\Fonts\\simhei.ttf`   ← 实测 12px 最清晰
-3. `C:\\Windows\\Fonts\\msyh.ttc`
-4. `C:\\Windows\\Fonts\\Deng.ttf`
-5. `C:\\Windows\\Fonts\\simsun.ttc`
+经实测，它的字宽与 simhei 在 12px 下**完全一致**（全角 12px / 半角 6px），
+所以换字体不需要改任何布局常量。
 
+回退顺序（前面的不可用才用后面的）：
+
+1. `assets/fonts/ark-pixel-12px-monospaced-zh_hans.ttf`  ← 首选，随项目分发
+2. `assets/fonts/simhei.ttf`                            ← 也可自行放一份
+3. `C:\\Windows\\Fonts\\simhei.ttf`
+4. `C:\\Windows\\Fonts\\msyh.ttc`
+5. `C:\\Windows\\Fonts\\Deng.ttf`
+6. `C:\\Windows\\Fonts\\simsun.ttc`
+
+有了第 1 项之后，本项目**不再依赖 Windows 系统字体**，非 Windows 平台也能跑。
 全部找不到时抛 RuntimeError，并提示手动放置字体。
+
+（素材目录里的 `umplus_j12r.bdf` / `PixelMplus12-Regular.ttf` 仍然不可用：
+它们是日文字体，缺简体字形，"精灵对战" 会渲染成 "精?小游"，已实测。）
 
 字号固定 12（与《数值设定.md》§13 一致：全角 12px / 半角 6px / 行高 14px）。
 """
@@ -33,8 +44,12 @@ LINE_HEIGHT = 14
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+#: 随项目分发的点阵字体文件名（OFL 1.1，可自由分发）
+BUNDLED_FONT = "ark-pixel-12px-monospaced-zh_hans.ttf"
+
 #: 字体候选路径（按优先级）。**只有本模块能引用这些路径。**
 FONT_CANDIDATES: tuple[str, ...] = (
+    os.path.join(_PROJECT_ROOT, "assets", "fonts", BUNDLED_FONT),
     os.path.join(_PROJECT_ROOT, "assets", "fonts", "simhei.ttf"),
     r"C:\Windows\Fonts\simhei.ttf",
     r"C:\Windows\Fonts\msyh.ttc",

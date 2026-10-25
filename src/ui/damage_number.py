@@ -9,11 +9,24 @@
 
 **数字走 pyxel.text（内置 8px 位图字体）**：里面只有阿拉伯数字，
 没有中文字形，所以不走 :mod:`src.ui.text`（那里只负责中文）。
+
+描边
+----
+圆圈数字外面套一圈 **1px 深色描边**（色 5 深紫），在浅色的天空 / 草地背景上
+能清楚地分出圆圈的轮廓。描边色选 **色 5** 而不是色 0 的原因见
+:data:`OUTLINE_COLOR`。
+
+**描边加在"圆圈"上而不是"数字笔画"上**：Pyxel 内置位图字体一个字符只有
+4x6 像素（字形 3x5），如果给笔画本身描 1px 边，"8 / 0 / 6 / 9" 的字洞
+会被描边色填死，数字直接变成一团黑块。圆圈外框既解决了浅色背景上的
+可读性，又不会毁掉数字本身。
 """
 
 from __future__ import annotations
 
 import pyxel
+
+from src.assets_gen import palette
 
 #: 圆圈半径（§13.3）
 CIRCLE_RADIUS = 9
@@ -37,6 +50,21 @@ ENEMY_TEXT = 0
 PLAYER_BACK = 8
 PLAYER_EDGE = 15
 PLAYER_TEXT = 7
+
+#: 圆圈数字的描边色 = **色 5 深紫**。
+#:
+#: 为什么不选色 0（黑）：
+#:
+#: - 色 0 是本项目 `pyxel.blt(colkey=0)` 的**透明键**，语义上被保留；
+#: - 敌方飘字的字色**本身就是色 0**，用色 0 描边等于没描边；
+#: - 色 0 是纯黑，在深色背景（红圆圈色 8）上会糊成一片。
+#:
+#: 色 5（深紫）在调色板文档里本来就是「精灵描边专用色」，
+#: 在浅蓝天空（色 12）、浅绿草地（色 4）、浅灰圆圈（色 15）上都能压出边缘。
+OUTLINE_COLOR = palette.DARK_PURPLE
+
+#: 描边宽度（像素）：圆圈外再套一圈 1px 的深色
+OUTLINE_WIDTH = 1
 
 
 class DamageNumber:
@@ -107,18 +135,29 @@ class DamageNumber:
             return False
         return True
 
-    def draw(self) -> None:
-        """画这个圆圈数字（闪烁帧自动跳过）。"""
+    def draw(self, offset: tuple[int, int] = (0, 0)) -> None:
+        """画这个圆圈数字（闪烁帧自动跳过）。
+
+        参数
+        ----
+        offset
+            额外的屏幕偏移（震屏用）。默认 (0, 0) 表示不偏移。
+        """
         if not self.visible:
             return
-        cy = self.y - self.offset_y
+        ox = int(offset[0]) if offset else 0
+        oy = int(offset[1]) if offset else 0
+        cx = self.x + ox
+        cy = self.y - self.offset_y + oy
         back, edge, fg = self.colors
-        pyxel.circ(self.x, cy, CIRCLE_RADIUS, back)
-        pyxel.circb(self.x, cy, CIRCLE_RADIUS, edge)
+        # ⑥ 1px 深色描边：先画一圈大一号的深色圆当外框，再压上原来的圆圈
+        pyxel.circ(cx, cy, CIRCLE_RADIUS + OUTLINE_WIDTH, OUTLINE_COLOR)
+        pyxel.circ(cx, cy, CIRCLE_RADIUS, back)
+        pyxel.circb(cx, cy, CIRCLE_RADIUS, edge)
         label = str(self.value)
         # Pyxel 2.9.9 没有 text_width()，内置字体每个字符固定 FONT_WIDTH 宽
         width = len(label) * pyxel.FONT_WIDTH
-        pyxel.text(self.x - width // 2, cy - 4, label, fg)
+        pyxel.text(cx - width // 2, cy - 4, label, fg)
 
 
 class DamageNumberGroup:
@@ -156,10 +195,16 @@ class DamageNumberGroup:
                 alive.append(number)
         self.numbers = alive
 
-    def draw(self) -> None:
-        """画出所有还在飘的数字。"""
+    def draw(self, offset: tuple[int, int] = (0, 0)) -> None:
+        """画出所有还在飘的数字。
+
+        参数
+        ----
+        offset
+            额外的屏幕偏移（震屏用）。默认 (0, 0) 表示不偏移。
+        """
         for number in self.numbers:
-            number.draw()
+            number.draw(offset)
 
     # ------------------------------------------------------------ 查询
     @property

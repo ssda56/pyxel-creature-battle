@@ -28,18 +28,20 @@
 
 ## 3. 字体
 
-**本项目不附带、不分发任何字体文件。**
+本项目**随仓库分发一份开源中文字体**，游戏默认使用它。
 
-- `assets/fonts/` 目录下只有一个说明用的 `README.md`，没有任何 `.ttf` / `.ttc` / `.bdf` 文件。
-- 游戏运行时的中文渲染依赖**操作系统自带的字体**，回退顺序为：
+- 文件：`assets/fonts/ark-pixel-12px-monospaced-zh_hans.ttf`
+  —— **Ark Pixel Font（方舟像素字体）12px 等宽简体中文版**，
+  作者 TakWolf，授权 **SIL Open Font License 1.1**（全文见 `assets/fonts/OFL.txt`）。
+  OFL 允许随软件自由分发与嵌入，因此可以放进本仓库。
+- 为什么选它：它是为 12px 手工点阵设计的中文像素字体，笔画落在整像素上；
+  系统矢量黑体在 12px 下会把横竖笔画糊在一起。二者字宽实测完全一致
+  （全角 12px / 半角 6px），所以换字体不影响任何布局常量。
+- 回退顺序（前一项不可用才用后一项）：内置点阵字体 →
   `assets/fonts/simhei.ttf` → `C:\Windows\Fonts\simhei.ttf` → `msyh.ttc` →
-  `Deng.ttf` → `simsun.ttc`。全部找不到时抛出 `RuntimeError`。
-- 黑体（SimHei / SimSun / 微软雅黑 / 等线）属于微软系统字体，**版权归微软所有，不随本项目分发**。
-  本项目仅在运行时"调用"操作系统字体，不对其做任何再分发。
-- 因此：**在没有中文字体的系统（如多数 Linux / macOS 环境）上本项目无法启动**，
-  这是一项已知且有意保留的限制，详见 README 的「已知限制」一节。
-- 如果你需要让项目在别的系统上运行，自行放置一份可合法使用的字体到 `assets/fonts/` 即可，
-  但该字体的分发授权由你自己负责。
+  `Deng.ttf` → `simsun.ttc`。全部找不到时抛 `RuntimeError`。
+- **微软系统字体（SimHei / SimSun / 微软雅黑 / 等线）仍然不随本项目分发**，
+  仅在回退链里被调用。请不要因为项目能跑就认为可以把它们一起打包。
 
 ## 4. 像素美术 —— 本项目原创，无外部素材
 
@@ -66,15 +68,19 @@ Third-party components redistributed in this repository:
 | Pyxel (game engine) | dependency, not vendored | Takashi Kitao | MIT |
 | `audio_bgm1.ogg` | `assets/audio/bgm1.ogg` | Takashi Kitao | MIT |
 | `audio_bgm2.ogg` | `assets/audio/bgm2.ogg` | Takashi Kitao | MIT |
+| Ark Pixel Font 12px | `assets/fonts/ark-pixel-12px-monospaced-zh_hans.ttf` | TakWolf | OFL 1.1 |
 
 The two `.ogg` files are byte-for-byte copies of the sample music shipped with the
 official Pyxel distribution (MIT, © Takashi Kitao), renamed only for convenience.
 
-**No font files are distributed with this project.** Chinese text is rendered with
-fonts provided by the operating system (on Windows: `simhei.ttf` and other system
-fonts). Those fonts are proprietary to Microsoft and are neither included nor
-redistributed here. On systems without a CJK system font the game raises a
-`RuntimeError` at startup — this is a known limitation.
+**One open-source font is bundled:** `assets/fonts/ark-pixel-12px-monospaced-zh_hans.ttf`
+(Ark Pixel Font 12px, by TakWolf, SIL Open Font License 1.1 - see
+`assets/fonts/OFL.txt`). It is a hand-designed 12px pixel CJK font, which is why it
+renders sharply at this project's 240x216 resolution.
+
+Microsoft system fonts (`simhei.ttf` and relatives) remain **not distributed**; they
+are only consulted as a fallback chain if the bundled font is missing. The game no
+longer requires a Windows system font in order to start.
 
 All pixel art under `src/assets_gen/` is procedurally generated from character-art
 source files written for this project; the source code is the asset source.

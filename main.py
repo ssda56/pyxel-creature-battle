@@ -13,6 +13,8 @@ r"""精灵对战小游戏 —— 程序入口。
 不走。游玩前请切到英文输入法（Shift 或 Win+Space）。详见 README「已知限制」。
 
 分辨率固定 240x216，帧率固定 60。
+窗口按 display_scale 整数倍放大（默认 4 倍），可用 `--scale N` 覆盖。
+**整数倍放大是为了保证像素锐利**：非整数缩放会把像素糊掉。
 """
 
 from __future__ import annotations
@@ -35,31 +37,38 @@ SCREEN_WIDTH = 240
 SCREEN_HEIGHT = 216
 #: 帧率（锁定）
 FPS = 60
+#: 窗口放大倍数（默认 4 倍整数缩放；`--scale N` 可覆盖）
+DISPLAY_SCALE = 4
 #: 窗口标题
 TITLE = "精灵对战"
 
 
-def _parse_args(argv: list[str]) -> tuple[bool, int, str | None]:
-    """解析命令行：--headless / --frames N / --shot PATH。"""
+def _parse_args(argv: list[str]) -> tuple[bool, int, str | None, int]:
+    """解析命令行：--headless / --frames N / --shot PATH / --scale N。"""
     headless = "--headless" in argv
     frames = 10
     shot = None
+    scale = DISPLAY_SCALE
     if "--frames" in argv:
         frames = int(argv[argv.index("--frames") + 1])
     if "--shot" in argv:
         shot = argv[argv.index("--shot") + 1]
-    return headless, frames, shot
+    if "--scale" in argv:
+        scale = max(1, int(argv[argv.index("--scale") + 1]))
+    return headless, frames, shot, scale
 
 
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
-    headless, frames, shot = _parse_args(argv)
+    headless, frames, shot, scale = _parse_args(argv)
 
     # 1) 初始化 Pyxel（分辨率 / 帧率锁定）
     # quit_key=pyxel.KEY_NONE：**关掉 Pyxel 自带的「Esc 立刻退出」**，
     # 改由 src/core/game.py 接管 Esc -> 弹出退出确认弹窗
     # （存档并退出 / 直接退出 / 取消），玩家按 Esc 不会立刻消失。
+    # display_scale：整数倍放大保证像素锐利；无头模式不放大。
     pyxel.init(SCREEN_WIDTH, SCREEN_HEIGHT, title=TITLE, fps=FPS,
+               display_scale=None if headless else scale,
                headless=headless, quit_key=pyxel.KEY_NONE)
 
     # 1.5) 把窗口抢到前台（否则 SDL 收不到键盘事件，表现为"人物不走"）

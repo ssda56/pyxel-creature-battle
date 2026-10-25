@@ -1,10 +1,11 @@
 """战斗界面小部件（《数值设定.md》§13.1 / §13.2）。
 
-包含三样东西：
+包含四样东西：
 
 - :func:`draw_bar`：进度条（HP 条 / MP 条），比例自动夹取到 [0, 1]；
 - :func:`draw_status_box`：战斗信息框（名称 + 等级 + HP 条 + HP 数字 + MP 条 + MP 数字）；
-- :class:`MenuList`：竖排选项菜单（带 ▶ 光标、可置灰）。
+- :class:`MenuList`：竖排选项菜单（带 ▶ 光标、可置灰）；
+- :class:`HpBarAnimator`：血条缓动（**纯显示层**，不改真实 HP）。
 
 中文一律走 :mod:`src.ui.text`；纯数字用 pyxel.text 内置位图字体（更紧凑）。
 """
@@ -72,7 +73,8 @@ def draw_bar(x: int, y: int, w: int, h: int, ratio: float,
 
 
 def draw_status_box(x: int, y: int, name: str, level: int,
-                    hp: int, hp_max: int, mp: int, mp_max: int) -> None:
+                    hp: int, hp_max: int, mp: int, mp_max: int,
+                    hp_display: int | None = None) -> None:
     """画战斗信息框（§13.1）。
 
     框内从上到下：
@@ -82,9 +84,17 @@ def draw_status_box(x: int, y: int, name: str, level: int,
     3. HP 数字
     4. MP 条 66x4
     5. MP 数字
+
+    参数
+    ----
+    hp_display
+        **显示用**的 HP（血条缓动时用）。给 None 就用真实 hp，
+        所以不传这个参数的老调用点行为完全不变。
     """
     x = int(x)
     y = int(y)
+    #: 画在框里的 HP（真实值或缓动中的显示值）
+    shown_hp = int(hp) if hp_display is None else int(hp_display)
 
     # 框体
     pyxel.rect(x, y, STATUS_BOX_W, STATUS_BOX_H, palette.LIGHT_GRAY)
@@ -95,17 +105,138 @@ def draw_status_box(x: int, y: int, name: str, level: int,
     lv = f"Lv{int(level)}"
     text.draw(x + STATUS_BOX_W - BOX_PAD - text.width(lv), y + 1, lv, palette.BLACK)
 
-    # HP 条 + HP 数字
-    hp_ratio = (float(hp) / float(hp_max)) if int(hp_max) > 0 else 0.0
+    # HP 条 + HP 数字（用显示值 drawn_hp，缓动时数字跟着血条一起走）
+    hp_ratio = (float(shown_hp) / float(hp_max)) if int(hp_max) > 0 else 0.0
     draw_bar(x + 8, y + 13, HP_BAR_W, HP_BAR_H, hp_ratio,
              HP_BAR_BACK, HP_BAR_FORE)
-    pyxel.text(x + 8, y + 18, f"{int(hp)}/{int(hp_max)}", palette.BLACK)
+    pyxel.text(x + 8, y + 18, f"{shown_hp}/{int(hp_max)}", palette.BLACK)
 
     # MP 条 + MP 数字
     mp_ratio = (float(mp) / float(mp_max)) if int(mp_max) > 0 else 0.0
     draw_bar(x + 8, y + 26, MP_BAR_W, MP_BAR_H, mp_ratio,
              MP_BAR_BACK, MP_BAR_FORE)
     pyxel.text(x + 8, y + 30, f"{int(mp)}/{int(mp_max)}", palette.BLACK)
+
+
+class HpBarAnimator:
+    """血条缓动（**纯显示层**，绝不动真实 HP）。
+
+    为什么要有它
+    ------------
+    掉血瞬间血条直接跳变，看起来很生硬。这里让血条"慢慢缩短"，
+    但**真实 HP 早就在数据层结算完了** —— 本类只维护一个"显示值"，
+    永远不写回 :class:`src.model.Creature` 的 `hp`。
+
+    两段式
+    ------
+    1. 先从旧显示值掉到「旧显示值 + 差值 × 0.3」（先快速掉一小段）；
+    2. 停顿 `HOLD_FRAMES` 帧（让玩家看清"刚刚被打了一下"）；
+    3. 再掉到真实值。
+
+    用法::
+
+        anim = HpBarAnimator()
+        anim.sync("enemy", creature.hp)        # 每帧调一次（只读真实值）
+        bar_hp = anim.display("enemy", creature.hp)   # 只读，不推进
+    """
+
+    #: 第一段走完后的停顿帧数
+    HOLD_FRAMES = 6
+    #: 第一段走「差值 × 0.3」
+    FIRST_STAGE_RATIO = 0.3
+    #: 每帧最多走「剩余差值 × 0.35」（至少 1 点）
+    STEP_RATIO = 0.35
+
+    def __init__(self, first_ratio: float = FIRST_STAGE_RATIO,
+                 hold_frames: int = HOLD_FRAMES,
+                 step_ratio: float = STEP_RATIO):
+        self.first_ratio = float(first_ratio)
+        self.hold_frames = max(0, int(hold_frames))
+        self.step_ratio = float(step_ratio)
+        #: key -> {"display", "target", "mid", "phase", "hold"}
+        self._states: dict[str, dict] = {}
+
+    # ------------------------------------------------------------ 内部
+    @staticmethod
+    def _new_state(real: int) -> dict:
+        return {"display": int(real), "target": int(real), "mid": int(real),
+                "phase": "idle", "hold": 0}
+
+    def _mid_value(self, display: int, target: int) -> int:
+        """第一段落点：显示值朝目标走 first_ratio。"""
+        return int(round(display + (target - display) * self.first_ratio))
+
+    def _step(self, current: int, goal: int) -> int:
+        """朝 goal 走一步（至少 1 点，且不越过 goal）。"""
+        delta = int(goal) - int(current)
+        if delta == 0:
+            return int(current)
+        step = int(abs(delta) * self.step_ratio)
+        if step < 1:
+            step = 1
+        if step > abs(delta):
+            step = abs(delta)
+        return int(current) + (step if delta > 0 else -step)
+
+    def _advance(self, st: dict) -> None:
+        """把缓动状态推进一帧。"""
+        phase = st["phase"]
+        if phase == "idle":
+            return
+        if phase == "first":
+            st["display"] = self._step(st["display"], st["mid"])
+            if st["display"] == st["mid"]:
+                st["phase"] = "hold"
+                st["hold"] = 0
+            return
+        if phase == "hold":
+            st["hold"] = int(st["hold"]) + 1
+            if st["hold"] >= self.hold_frames:
+                st["phase"] = "second"
+            return
+        # phase == "second"
+        st["display"] = self._step(st["display"], st["target"])
+        if st["display"] == st["target"]:
+            st["phase"] = "idle"
+
+    # ------------------------------------------------------------ 对外
+    def reset(self, key: str | None = None) -> None:
+        """清空缓动状态（key 为 None = 全部清空）。"""
+        if key is None:
+            self._states.clear()
+        else:
+            self._states.pop(key, None)
+
+    def sync(self, key: str, real_hp: int) -> None:
+        """每帧调用一次：侦测真实值变化，并推进缓动。
+
+        **只读 real_hp，绝不写回**（真实 HP 的唯一写入方是 Creature 自身）。
+        """
+        real = int(real_hp)
+        st = self._states.get(key)
+        if st is None:
+            self._states[key] = self._new_state(real)
+            return
+        if real != st["target"]:
+            # 目标变了：从**当前显示值**重新规划两段
+            st["target"] = real
+            st["mid"] = self._mid_value(st["display"], real)
+            st["phase"] = "first"
+            st["hold"] = 0
+            return
+        self._advance(st)
+
+    def display(self, key: str, real_hp: int) -> int:
+        """当前应该画出来的 HP（只读，不推进）。"""
+        st = self._states.get(key)
+        if st is None:
+            return int(real_hp)
+        return int(st["display"])
+
+    def phase(self, key: str) -> str:
+        """缓动阶段：idle / first / hold / second（测试用）。"""
+        st = self._states.get(key)
+        return "idle" if st is None else str(st["phase"])
 
 
 class MenuList:

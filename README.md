@@ -4,19 +4,15 @@
 >
 > 玩法循环：**探索地图 → 遭遇野生精灵 → 战斗 / 捕捉 → 治疗与养成 → 商店补给 → 继续探索**
 
-## ⚠️ 运行前必读：目前只能在 Windows 上跑
+## 平台支持
 
-这个游戏的中文字体**不随项目分发**，而是运行时去操作系统里找，回退链固定为
-`assets/fonts/simhei.ttf` → `C:\Windows\Fonts\simhei.ttf` → `msyh.ttc` → `Deng.ttf` → `simsun.ttc`。
-这些字体只有 Windows 才有。
+**Windows / macOS / Linux 都能跑**——纯 Python + Pyxel，不需要显卡、不需要联网。
 
-- **Windows**：装好 Python 就能跑，系统自带黑体。
-- **macOS / Linux**：字体回退全部落空，程序启动时直接抛 `RuntimeError`（"找不到可用的中文字体"），
-  **目前跑不起来**。这不是配置问题，是已知限制（见 §8.3）。
-  想在非 Windows 上运行，需要自行准备一份**可合法使用**的中文字体放进 `assets/fonts/`。
+中文渲染用**随仓库分发的开源点阵字体** Ark Pixel Font 12px（OFL 1.1，见
+`assets/fonts/OFL.txt`），**不依赖操作系统字体**。早先版本依赖 Windows 系统黑体、
+只能在 Windows 上运行，这个问题已经解决。
 
-除字体之外，本项目没有别的平台绑定：纯 Python + Pyxel，逻辑层与引擎层是分开的，
-测试也全部是标准库 `unittest`，不需要显卡、不需要联网。
+逻辑层与引擎层是分开的，测试全部用标准库 `unittest`，`pip install pyxel` 即可开跑。
 
 ## 快速开始（2 分钟）
 
@@ -68,7 +64,7 @@ python main.py
 | 解释器 | Python 3.12.14（作者的开发环境版本） |
 | 依赖 | 仅 `pyxel` 2.9.9 + Python 标准库，见 [`requirements.txt`](requirements.txt) |
 | 画面 | 240 × 216，60 fps（已锁定） |
-| 操作系统 | **Windows**（中文渲染依赖 Windows 系统字体，Mac / Linux 目前起不来，见 §8.3） |
+| 操作系统 | **Windows / macOS / Linux 均可**（中文用随仓库分发的 OFL 点阵字体，不依赖系统字体） |
 
 > 依赖只有一个包：`pyxel`。除此之外不需要任何第三方库，
 > `pip install -r requirements.txt` 之后就够用了。
@@ -154,7 +150,9 @@ pyxel-creature-battle/
 │   │   ├── bgm1.ogg
 │   │   └── bgm2.ogg
 │   └── fonts/
-│       └── README.md                # 中文字体放这里（不放也能跑，见 §6.1）
+│       ├── ark-pixel-12px-monospaced-zh_hans.ttf   # 随仓库分发的 OFL 点阵字体
+│       ├── OFL.txt                  # 该字体的授权全文
+│       └── README.md                # 字体说明（见 §6.1）
 ├── docs/
 │   ├── 游戏说明书.md                 # 玩家向操作说明
 │   ├── 数值设定.md                   # 全部数值的唯一权威来源
@@ -227,8 +225,12 @@ text.width("精灵对战")                    # -> 48（全角 12px / 半角 6px
 text.wrap("一段很长的话", 120)            # 按像素宽度折行
 ```
 
-- 字体回退顺序：`assets/fonts/simhei.ttf` → `C:\Windows\Fonts\simhei.ttf` →
+- 默认字体是随仓库分发的 `assets/fonts/ark-pixel-12px-monospaced-zh_hans.ttf`
+  （Ark Pixel 12px，OFL 1.1）。它的字宽与系统黑体在 12px 下完全一致，换字体不影响布局。
+- 回退顺序：`assets/fonts/simhei.ttf` → `C:\Windows\Fonts\simhei.ttf` →
   `msyh.ttc` → `Deng.ttf` → `simsun.ttc`，全都没有就抛 `RuntimeError`。
+- **为什么不用矢量黑体**：12px 下它的横竖笔画会粘连、出现块状伪影（实测对比过），
+  点阵字体每条笔画都落在整像素上。
 - **绝对不要用素材目录里的 `umplus_j12r.bdf` / `PixelMplus12-Regular.ttf`**：
   它们是日文字体，缺简体字形，"精灵对战"会渲染成"精?小游"（已实测）。
 - 字号固定 **12**（行高 14）。
@@ -295,7 +297,7 @@ pyxel.blt(x, y, img, 0, 0, 16, 16, colkey=0)
 |---|---|---|---|
 | 1 | `src/model/bag.py` | **不存在**，背包并入 `src/model/player.py` | 背包就是个 `dict[int, int]`，不值得单独一个文件 |
 | 2 | `assets/game.pyxres` | **不存在**，改为 `src/assets_gen/` 程序化生成 | 见 §8.3 |
-| 3 | 字体放 `assets/fonts/` | 目录留空，回退到系统 `simhei.ttf` | 见 §8.3 |
+| 3 | 字体放 `assets/fonts/` | **已符合**：随仓库分发 OFL 点阵字体（Ark Pixel 12px） | 曾是偏差，现已一致；见 §6.1 |
 | 4 | §3.2「玩家指令**四**选一」 | **五**选一（多一个"精灵"换人） | 少了换人没法打 |
 | 5 | §3.7「草丛随机遇敌约 10%/步」 | **明雷**：地图上游走的实体，碰撞进战斗 | 文档 §八（第 251 行）自己确认过明雷，**文档内部矛盾** |
 | 6 | §3.8「每格 8~12 帧插值」 | **20 帧**/格 | 60fps 下 0.33 秒一格，手感更实 |
@@ -320,7 +322,7 @@ Pyxel 2.9.9 的 Rust 内核在第二次 `pyxel.init()` 时会 panic（`Pyxel alr
 所以**不要用 PyCharm 的 Python 控制台反复重跑**，用 Run 按钮（每次全新进程）或命令行。
 同理，`pyxel.quit()` 会**直接结束整个进程**，测试里一律用桩替换，不要真调。
 
-### 8.3 美术与字体都是"程序自带"，没有外部素材
+### 8.3 美术是程序化生成，字体是随仓库分发的开源点阵字体
 
 精灵、图块、主角全部是**字符画 + 调色板**在启动时烘焙成 `pyxel.Image` 的，
 源码即素材，改图改 `src/assets_gen/sprites/*.py` 就行。当初评估过 AI 生图再转换的路线
@@ -328,9 +330,9 @@ Pyxel 2.9.9 的 Rust 内核在第二次 `pyxel.init()` 时会 panic（`Pyxel alr
 
 代价：风格偏简，18 只精灵的辨识度依赖颜色和轮廓差异。
 
-字体同理，没有随项目分发 `simhei.ttf`，靠系统字体回退。**换了没有黑体的机器会抛 `RuntimeError`**，
-届时把 `simhei.ttf` 放进 `assets/fonts/` 即可。这就是本项目
-**在 macOS / Linux 上跑不起来**的根本原因（字体授权见 [NOTICE](NOTICE)）。
+字体方面：早先版本靠系统黑体，**在 macOS / Linux 上会直接抛 `RuntimeError`**。
+现在改为**随仓库分发 OFL 点阵字体**（Ark Pixel 12px），不再依赖系统字体，三个平台都能跑。
+系统字体只作为回退链存在（字体授权见 [NOTICE](NOTICE)）。
 
 ### 8.4 音频只验证了接线，没验证听感
 
@@ -400,8 +402,9 @@ T12 修好了一个长期缺陷：以前野生精灵**只带 Lv1 的两招**（`
   本项目的图形、输入、音频输出全部由它提供。
 - **Pyxel 官方示例音频** `audio_bgm1.ogg` / `audio_bgm2.ogg` —— MIT License，随 Pyxel 一同发布。
   仓库里的 `assets/audio/bgm1.ogg`、`bgm2.ogg` **就是这两个文件本身，与之逐字节完全相同**。
-- **字体**：本项目**不附带也不分发任何字体文件**，运行时调用操作系统自带字体（Windows 的 `simhei.ttf` 等）。
-  黑体属微软系统字体，**不随本项目分发**，请勿据此认为可以再分发。
+- **字体** `ark-pixel-12px-monospaced-zh_hans.ttf` —— **Ark Pixel Font 12px**，作者 TakWolf，
+  **SIL Open Font License 1.1**，随本项目分发（全文见 `assets/fonts/OFL.txt`）。
+  微软系统黑体仅在回退链中使用，**不随本项目分发**。
 
 完整署名见 **[NOTICE](NOTICE)**，音频细节见 **[assets/audio/README.md](assets/audio/README.md)**。
 
