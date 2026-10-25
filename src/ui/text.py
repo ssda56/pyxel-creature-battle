@@ -88,6 +88,119 @@ def current_font_path() -> str | None:
     """返回当前实际使用的字体路径（未初始化时返回 None）。"""
     return _FONT_PATH
 
+# ------------------------------------------------------------------ 字形覆盖回退
+#
+# 随项目分发的点阵字体**不一定覆盖游戏里用到的每一个汉字**（实测 Ark Pixel
+# 简体版就缺 "药/然/即/既/热/毁/紧/缘" 等 31 个常用字，会渲染成空心方块）。
+# 与其指望某一套字体全知全能，不如在这里做**逐字回退**：
+#
+#   主字体有这个字 -> 用主字体（锐利）
+#   主字体没有     -> 用备用系统字体渲染这一个字（略糊，但至少不是方块）
+#
+# 之所以敢这么做，是因为两套字体在 12px 下的**字宽完全一致**
+# （全角 12px / 半角 6px，已实测），所以中间换字体不会影响任何排版与折行。
+# width() 因此完全不用改。
+
+#: 主字体缺字时用来补的字体（按顺序找第一个可用的系统字体）
+FALLBACK_CANDIDATES: tuple[str, ...] = (
+    os.path.join(_PROJECT_ROOT, "assets", "fonts", "simhei.ttf"),
+    r"C:\Windows\Fonts\simhei.ttf",
+    r"C:\Windows\Fonts\msyh.ttc",
+    r"C:\Windows\Fonts\Deng.ttf",
+    r"C:\Windows\Fonts\simsun.ttc",
+)
+
+_FALLBACK_FONT: pyxel.Font | None = None
+_FALLBACK_PATH: str | None = None
+_COVERED: set[int] | None = None
+_COVERAGE_RESOLVED = False
+
+
+def read_cmap_codepoints(path: str) -> set[int]:
+    """读取字体 cmap 表，返回它支持的码位集合。
+
+    纯标准库（struct）实现，不依赖第三方库。只解析 format 4 与 format 12，
+    这两种覆盖了中文点阵字体实际会用到的全部情况。解析失败返回空集，
+    调用方会据此退化为"不做回退"，不会崩。
+    """
+    import struct
+
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        if len(data) < 12:
+            return set()
+        (num_tables,) = struct.unpack(">H", data[4:6])
+        cmap_off = None
+        for i in range(num_tables):
+            rec = 12 + i * 16
+            if data[rec:rec + 4] == b"cmap":
+                (cmap_off,) = struct.unpack(">I", data[rec + 8:rec + 12])
+                break
+        if cmap_off is None:
+            return set()
+
+        (n_sub,) = struct.unpack(">H", data[cmap_off + 2:cmap_off + 4])
+        codes: set[int] = set()
+        for i in range(n_sub):
+            rec = cmap_off + 4 + i * 8
+            (sub_off,) = struct.unpack(">I", data[rec + 4:rec + 8])
+            so = cmap_off + sub_off
+            (fmt,) = struct.unpack(">H", data[so:so + 2])
+            if fmt == 4:
+                (seg_x2,) = struct.unpack(">H", data[so + 6:so + 8])
+                seg = seg_x2 // 2
+                ends = [struct.unpack(">H", data[so + 14 + 2 * j:so + 16 + 2 * j])[0]
+                        for j in range(seg)]
+                starts_base = so + 16 + seg_x2
+                starts = [struct.unpack(">H", data[starts_base + 2 * j:starts_base + 2 * j + 2])[0]
+                          for j in range(seg)]
+                for s, e in zip(starts, ends):
+                    if s != 0xFFFF:
+                        codes.update(range(s, e + 1))
+            elif fmt == 12:
+                (n_groups,) = struct.unpack(">I", data[so + 12:so + 16])
+                for j in range(n_groups):
+                    g = so + 16 + j * 12
+                    s, e = struct.unpack(">II", data[g:g + 8])
+                    if e - s <= 0xFFFF:
+                        codes.update(range(s, e + 1))
+        return codes
+    except Exception:
+        return set()
+
+
+def covered_codepoints() -> set[int] | None:
+    """主字体支持的码位集合；无法判定时返回 None（表示不做回退）。"""
+    global _COVERED, _COVERAGE_RESOLVED
+    if _COVERAGE_RESOLVED:
+        return _COVERED
+    _COVERAGE_RESOLVED = True
+    path = font_path()
+    # 只有主字体是随项目分发的点阵字体时才需要回退：
+    # 系统字体（simhei 等）本身就覆盖这些字，没必要再套一层。
+    if os.path.basename(path) != BUNDLED_FONT:
+        return None
+    codes = read_cmap_codepoints(path)
+    _COVERED = codes or None
+    return _COVERED
+
+
+def fallback_font() -> pyxel.Font | None:
+    """备用字体；没有可用回退时返回 None。"""
+    global _FALLBACK_FONT, _FALLBACK_PATH
+    if _FALLBACK_PATH is not None:
+        return _FALLBACK_FONT
+    main = os.path.abspath(font_path())
+    for cand in FALLBACK_CANDIDATES:
+        if os.path.isfile(cand) and os.path.abspath(cand) != main:
+            _FALLBACK_PATH = cand
+            _FALLBACK_FONT = pyxel.Font(cand, FONT_SIZE)
+            return _FALLBACK_FONT
+    _FALLBACK_PATH = ""          # 标记"已查找过，没有可用回退"
+    return None
+
+
 
 def width(s: str) -> int:
     """测量字符串像素宽度。全角 12px、半角 6px。"""
@@ -95,8 +208,37 @@ def width(s: str) -> int:
 
 
 def draw(x: int, y: int, s: str, col: int) -> None:
-    """在 (x, y) 处用颜色 col 绘制字符串（**中文必须走这里**）。"""
-    pyxel.text(x, y, s, col, init_font())
+    """在 (x, y) 处用颜色 col 绘制字符串（**中文必须走这里**）。
+
+    主字体缺字时自动切换到备用字体渲染该字，避免出现空心方块。
+    两套字体 12px 下字宽一致，所以分段绘制不会改变排版。
+    """
+    main = init_font()
+    covered = covered_codepoints()
+    if covered is None:
+        pyxel.text(x, y, s, col, main)
+        return
+
+    fallback = fallback_font()
+    if fallback is None:
+        pyxel.text(x, y, s, col, main)
+        return
+
+    cx = x
+    run = ""
+    run_covered = None
+    for ch in s:
+        ok = ord(ch) in covered or ch == "\n"
+        if run_covered is None or ok == run_covered:
+            run += ch
+            run_covered = ok
+        else:
+            pyxel.text(cx, y, run, col, main if run_covered else fallback)
+            cx += (main if run_covered else fallback).text_width(run)
+            run = ch
+            run_covered = ok
+    if run:
+        pyxel.text(cx, y, run, col, main if run_covered else fallback)
 
 
 def draw_center(cx: int, y: int, s: str, col: int) -> None:
