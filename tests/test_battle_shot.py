@@ -53,7 +53,8 @@ class BattleShotTest(unittest.TestCase):
         self.assertEqual(helpers.png_size(SKILL_SHOT), (480, 432))
 
     def test_damage_screenshot(self):
-        game, scene, enemy = bh.make_battle(enemy_species=FASTER_ENEMY)
+        # 伤害有浮动（走无种子 RNG 的话每次不同），固定 seed 才能保证截图可复现
+        game, scene, enemy = bh.make_battle(enemy_species=FASTER_ENEMY, seed=1)
         bh.press(game, "confirm")      # INTRO -> COMMAND
         bh.press(game, "confirm")      # -> SKILL_SELECT
         bh.press(game, "down")         # 撞击

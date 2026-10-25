@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import random
 import sys
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,12 +16,17 @@ if PROJECT_ROOT not in sys.path:
 from tests import helpers  # noqa: E402
 
 
-def make_field(map_id: int = 1, script=None, x=None, y=None, facing=None):
+def make_field(map_id: int = 1, script=None, x=None, y=None, facing=None,
+               seed=None):
     """建一个跑在 FieldScene 上的 Game。
 
     返回 (game, scene)：
     - game.input 是 FakeInput，可以继续 queue() 追加脚本；
     - scene 是当前场景（FieldScene）。
+
+    `seed` 给定时把 `game.wild_rng` 换成 `random.Random(seed)`，刷怪与游走
+    因此完全可复现。**截图测试必须传 seed**，否则同一个用例两次跑出来的图不同，
+    提交进仓库的截图会一直产生无意义 diff。
     """
     helpers.ensure_init()
 
@@ -29,6 +35,8 @@ def make_field(map_id: int = 1, script=None, x=None, y=None, facing=None):
     from src.scenes.field_scene import FieldScene
 
     game = Game(input=FakeInput(script=script))
+    if seed is not None:
+        game.wild_rng = random.Random(seed)
     scene = FieldScene(game)
     kwargs = {"map_id": map_id}
     if x is not None:

@@ -57,7 +57,7 @@ class CaveShotTest(unittest.TestCase):
     def test_cave_screenshot(self):
         """洞窟入口洞室：地面 / 岩壁 / 传送阵 / 野生精灵图标。"""
         game, scene = field_helpers.make_field(map_id=CAVE_MAP, x=5, y=21,
-                                               facing="right")
+                                               facing="right", seed=1)
         wanderers = scene.wild_state["wanderers"]
         wanderers.clear()
         wanderers.append(_wanderer(6, 10, 7, 21))     # 三头犬
@@ -69,7 +69,7 @@ class CaveShotTest(unittest.TestCase):
     def test_cave_deep_screenshot(self):
         """最深处洞室：能看到不死鸟的图标。"""
         game, scene = field_helpers.make_field(map_id=CAVE_MAP, x=29, y=4,
-                                               facing="right")
+                                               facing="right", seed=2)
         wanderers = scene.wild_state["wanderers"]
         wanderers.clear()
         wanderers.append(_wanderer(7, 16, 32, 3))     # 不死鸟
@@ -84,7 +84,7 @@ class CaveShotTest(unittest.TestCase):
                   if p["to_map"] == CAVE_MAP][0]
         game, scene = field_helpers.make_field(
             map_id=FIELD_MAP, x=portal["x"] - 1, y=portal["y"] + 1,
-            facing="up")
+            facing="up", seed=3)
         self.assertEqual((scene.gx, scene.gy), (portal["x"] - 1,
                                                 portal["y"] + 1))
         helpers.run_frames(game.update, game.draw, 4,
@@ -95,7 +95,7 @@ class CaveShotTest(unittest.TestCase):
         """与洞窟三头犬的战斗第一帧。"""
         from src.model import Player
 
-        game, scene = field_helpers.make_field(map_id=CAVE_MAP, x=5, y=21)
+        game, scene = field_helpers.make_field(map_id=CAVE_MAP, x=5, y=21, seed=4)
         game.player = Player.new_game(1)
         wanderers = scene.wild_state["wanderers"]
         wanderers.clear()
