@@ -15,7 +15,7 @@ from __future__ import annotations
 import unittest
 
 from src.data.skill_data import get_skill
-from src.data.species_data import need_exp
+from src.data.species_data import MAX_SKILLS, need_exp
 from src.model.creature import Creature
 
 
@@ -288,6 +288,78 @@ class CombatStateTest(unittest.TestCase):
         c.heal_full()
         self.assertEqual(c.hp, c.hp_max)
         self.assertEqual(c.mp, c.mp_max)
+
+
+class CumulativeSkillsTest(unittest.TestCase):
+    """按等级累积的技能（§9.4 方案 B：野生精灵不该只有 Lv1 两招）。
+
+    覆盖：
+    - 默认技能按「该等级及以前累计学会的技能」取；
+    - 升级只补还没学会的招，**不会把已有的招再加一遍**；
+    - 存档往返后技能不变。
+    """
+
+    def test_lv1_still_has_only_two_skills(self):
+        """Lv1 精灵仍然只有 Lv1 的两招（不能变）。"""
+        self.assertEqual(Creature(7, level=1).skills, [4, 25])
+        self.assertEqual(Creature(1, level=1).skills, [3, 1])
+
+    def test_phoenix_accumulates_by_level(self):
+        """不死鸟 Lv15 三招（含 Lv8 的涅槃之炎）、Lv16 四招、Lv20 仍是四招。"""
+        self.assertEqual(len(Creature(7, level=15).skills), 3)
+        self.assertIn(6, Creature(7, level=15).skills,
+                      "Lv15 的不死鸟应该会 Lv8 的涅槃之炎")
+        self.assertEqual(len(Creature(7, level=16).skills), 4)
+        self.assertEqual(len(Creature(7, level=20).skills), MAX_SKILLS)
+
+    def test_all_species_levels_capped_and_unique(self):
+        """18 只精灵 × Lv1..Lv20 共 360 组：不超过 4 个、无重复。"""
+        for sid in range(1, 19):
+            for level in range(1, 21):
+                skills = Creature(sid, level=level).skills
+                self.assertLessEqual(len(skills), MAX_SKILLS,
+                                     f"种族 {sid} Lv{level} 技能超过上限")
+                self.assertEqual(len(skills), len(set(skills)),
+                                 f"种族 {sid} Lv{level} 技能重复：{skills}")
+
+    def test_level_up_does_not_duplicate_known_skills(self):
+        """Lv15 不死鸟升到 Lv16：技能数仍是 4，且没有重复。"""
+        c = Creature(7, level=15)
+        self.assertEqual(len(c.skills), 3)
+        c.gain_exp(need_exp(15))
+        self.assertEqual(c.level, 16)
+        self.assertEqual(len(c.skills), 4)
+        self.assertEqual(len(c.skills), len(set(c.skills)),
+                         f"升级后技能重复了：{c.skills}")
+        # Lv16 才学的招是第 4 个（凤凰天翔），前面的招式不该被重排/重复
+        self.assertEqual(c.skills, [4, 25, 6, 7])
+
+    def test_level_up_from_lv1_learns_each_skill_once(self):
+        """从 Lv1 一路升到 Lv20：每招只学一次，没有重复。"""
+        c = Creature(7, level=1)
+        self.assertEqual(c.skills, [4, 25])
+        c.gain_exp(sum(need_exp(lv) for lv in range(1, 20)))
+        self.assertEqual(c.level, 20)
+        self.assertEqual(c.skills, [4, 25, 6, 7])
+        self.assertEqual(len(c.skills), len(set(c.skills)))
+
+    def test_save_round_trip_keeps_skills(self):
+        """带 3 个技能的高等级精灵，to_dict / from_dict 后技能不变。"""
+        c = Creature(7, level=15)
+        self.assertEqual(len(c.skills), 3)
+        data = c.to_dict()
+        self.assertEqual(data["skills"], [4, 25, 6])
+        back = Creature.from_dict(data)
+        self.assertEqual(back.skills, [4, 25, 6])
+        self.assertEqual(back.to_dict(), data)
+
+    def test_explicit_skills_are_not_overwritten(self):
+        """显式传入 skills 时以传入为准（读老存档不套用新逻辑）。"""
+        c = Creature(7, level=15, skills=[4, 25])
+        self.assertEqual(c.skills, [4, 25])
+        back = Creature.from_dict({"species_id": 7, "level": 15,
+                                   "skills": [4, 25]})
+        self.assertEqual(back.skills, [4, 25])
 
 
 if __name__ == "__main__":

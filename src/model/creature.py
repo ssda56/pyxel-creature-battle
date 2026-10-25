@@ -10,8 +10,10 @@
 2. **HP/MP 写入即夹取**：任何来源（道具、伤害、存档）写入的 HP/MP 都会被夹到
    `[0, 上限]`。
 3. **升级即回满**：升级时 HP/MP 全回复（《数值设定.md》§6.3），并自动学会
-   Lv8 / Lv16 的新技能。
-4. **能力下降不叠加**：apply_atk_mod() 只刷新倍率与剩余回合数。
+   Lv8 / Lv16 的新技能（已会的招不重复学）。
+4. **默认技能按等级取**：`skills=None` 时取该等级及以前累计学会的技能
+   （Lv1 两招 + 到该等级为止的升级招，去重后最多 4 个）。
+5. **能力下降不叠加**：apply_atk_mod() 只刷新倍率与剩余回合数。
 
 本模块**不 import 任何 UI / 引擎模块**。
 """
@@ -21,9 +23,11 @@ from __future__ import annotations
 from src.data.skill_data import get_skill
 from src.data.species_data import (
     MAX_LEVEL,
+    MAX_SKILLS as MAX_SPECIES_SKILLS,
     MIN_LEVEL,
     Species,
     get_species,
+    learnset_up_to,
     need_exp,
     stat_at,
 )
@@ -45,13 +49,14 @@ class Creature:
     mp
         当前 MP；None 表示满蓝。写入时夹到 [0, 上限]。
     skills
-        已学会的技能 ID 列表；None 表示按种族学习表取 Lv1 初始技能。最多 4 个。
+        已学会的技能 ID 列表；None 表示按种族学习表取**该等级及以前累计**学会的
+        技能（Lv1 初始 + Lv8 + Lv16，去重后最多 4 个）。
     nickname
         昵称；留空时默认取种族名。
     """
 
-    #: 最多同时记住的技能数（《数值设定.md》§3.1）
-    MAX_SKILLS: int = 4
+    #: 最多同时记住的技能数（《数值设定.md》§3.1；与 species_data.MAX_SKILLS 同源）
+    MAX_SKILLS: int = MAX_SPECIES_SKILLS
 
     #: 从存档读回能力下降状态时假定的剩余回合数（存档不记回合数，§11 / D8）
     DEFAULT_MOD_ROUNDS: int = 3
@@ -68,7 +73,9 @@ class Creature:
         self._mod_rounds: int = 0
 
         if skills is None:
-            self._skills: list[int] = list(self._species.learnset.get(1, []))
+            # 没给技能 -> 按「该等级及以前累计学会的技能」取（Lv1 两招 +
+            # 到该等级为止的升级招，去重后最多 4 个）。
+            self._skills: list[int] = learnset_up_to(self._species_id, self._level)
         else:
             self._skills = [int(s) for s in skills][: self.MAX_SKILLS]
 
@@ -221,6 +228,7 @@ class Creature:
         - 经验按 need_exp() 逐级扣除，可连续升多级。
         - 每升一级，HP / MP **全回复**（《数值设定.md》§6.3）。
         - 到达 Lv8 / Lv16 自动学会该种族的新技能（技能最多 4 个，装满则跳过）。
+        - 升级只会补上**还没学会**的招，已经会的不会重复学。
         - 已满级（Lv20）时不再累积经验，返回空列表。
         """
         events: list[str] = []
@@ -240,9 +248,19 @@ class Creature:
         return events
 
     def _learn_for_level(self, level: int) -> list[str]:
-        """处理"到达某等级时自动学技能"，返回事件列表。"""
+        """处理"到达某等级时自动学技能"，返回事件列表。
+
+        规则
+        ----
+        - 候选 = 该种族在 `level` 及以前**累计**学会的技能（learnset_up_to）；
+        - **已经在会的招不会再加一遍**（去重）；
+        - 最多 `MAX_SKILLS`（4）个，装满则跳过。
+
+        这样从 Lv15 升到 Lv16 时，只会补上还没学会的那一招，
+        不会把已有的招重复加进来。
+        """
         events: list[str] = []
-        for skill_id in self._species.learnset.get(int(level), []):
+        for skill_id in learnset_up_to(self._species_id, int(level)):
             if skill_id in self._skills:
                 continue
             if len(self._skills) >= self.MAX_SKILLS:

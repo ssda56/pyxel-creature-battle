@@ -11,7 +11,7 @@ from src.core.input import FakeInput
 from src.model import save_io
 from src.model.creature import Creature
 from src.model.player import Player
-from src.scenes.menu_scene import MenuScene
+from src.scenes.menu_scene import MAIN_ITEMS, MenuScene
 from tests import field_helpers
 from tests import helpers
 
@@ -24,6 +24,16 @@ def press(game, action: str) -> None:
     game.input = FakeInput(script=[{action: 1}, {}])
     game.update()
     game.update()
+
+
+def goto_main_item(game, label: str) -> None:
+    """按名字导航到主菜单的某一项。
+
+    不要用「按几次 down」写死下标——菜单项一增删下标全错（T12 加「仓库」时
+    就是这么踩的，两个截图用例静默走错项）。按名字查位置，菜单怎么变都对。
+    """
+    for _ in range(MAIN_ITEMS.index(label)):
+        press(game, "down")
 
 
 def shot_path(name: str) -> str:
@@ -65,7 +75,7 @@ class Batch3ShotTest(unittest.TestCase):
     def test_shot_bag(self):
         game, _ = self._menu_game()
         press(game, "menu")
-        press(game, "down")
+        goto_main_item(game, "道具")
         press(game, "confirm")          # 道具
         self._shoot(game, "batch3_bag.png")
 
@@ -81,8 +91,7 @@ class Batch3ShotTest(unittest.TestCase):
         try:
             game, _ = self._menu_game()
             press(game, "menu")
-            press(game, "down")
-            press(game, "down")
+            goto_main_item(game, "存档")
             press(game, "confirm")      # 存档
             menu = game.scenes.current
             self.assertEqual(menu.message, "已保存到 存档 1")

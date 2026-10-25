@@ -2,8 +2,9 @@
 
 功能
 ----
-- **主菜单**四项：精灵 / 道具 / 存档 / 返回；
+- **主菜单**五项：精灵 / 仓库 / 道具 / 存档 / 返回；
 - **精灵**：看队伍、查详情、调换顺序（confirm 选中一只 -> 再选一只 -> 交换）；
+- **仓库**：队伍与仓库互相搬运（←→ 切页签，↑↓ 选精灵，confirm 移动）；
 - **道具**：看背包；伤药 / 好伤药 / 蓝药水 / 复活草要先选精灵才能用；
 - **存档**：写入 saves/save1.json 并提示结果。
 
@@ -19,6 +20,9 @@
 - 左侧浅灰面板：竖排列表（▶ 黄色光标）；
 - 右侧浅灰面板：详情；
 - 底部：提示条。
+
+**仓库界面**多一行页签（队伍 / 仓库），面板整体下移 10px；
+仓库没有上限，名单超过一屏时自动滚动。
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ import pyxel
 from src.assets_gen import palette, sprite_base
 from src.data import item_data, skill_data
 from src.model import save_io
+from src.model.player import PARTY_LIMIT, PARTY_MIN
 from src.scenes.scene_base import Scene
 from src.ui import sound, text
 from src.ui.widgets import MenuList, draw_bar
@@ -36,14 +41,19 @@ from src.ui.widgets import MenuList, draw_bar
 SCREEN_W = 240
 SCREEN_H = 216
 
-#: 主菜单四项
-MAIN_ITEMS: tuple[str, ...] = ("精灵", "道具", "存档", "返回")
+#: 主菜单五项
+MAIN_ITEMS: tuple[str, ...] = ("精灵", "仓库", "道具", "存档", "返回")
 
 #: 菜单的几种模式
 MODE_MAIN = "main"        # 主菜单
 MODE_PARTY = "party"      # 队伍列表
 MODE_BAG = "bag"          # 背包列表
 MODE_TARGET = "target"    # 选精灵（用道具时）
+MODE_STORAGE = "storage"  # 仓库（队伍 <-> 仓库 双页签）
+
+#: 仓库界面的两个页签
+TAB_PARTY = "party"       # 队伍页签
+TAB_STORE = "store"       # 仓库页签
 
 #: 存档位名字（显示用）
 SAVE_SLOT_NAME = "存档 1"
@@ -65,6 +75,24 @@ MAIN_X, MAIN_Y, MAIN_STEP = 30, 54, 24
 
 #: 底部提示条
 MSG_Y = 190
+
+#: 仓库界面：页签行（占掉顶部第二行 HINT_Y 的位置）
+TAB_Y = HINT_Y
+#: 仓库界面：左侧列表面板（比菜单矮一行，给页签让位）
+DEPOT_LEFT_X, DEPOT_LEFT_Y, DEPOT_LEFT_W, DEPOT_LEFT_H = 0, 40, 128, 146
+#: 仓库界面：右侧详情面板
+DEPOT_RIGHT_X, DEPOT_RIGHT_Y, DEPOT_RIGHT_W, DEPOT_RIGHT_H = 128, 40, 112, 146
+#: 仓库界面：列表项坐标与行距
+DEPOT_LIST_X, DEPOT_LIST_Y, DEPOT_LIST_STEP = 12, 50, 18
+#: 仓库界面：一屏显示几行（仓库无上限，要能滚动）
+DEPOT_VISIBLE_ROWS = 7
+
+#: 仓库界面底部默认提示（没有新消息时显示）
+DEPOT_HINT = "←→换页签 ↑↓选精灵 Z移动 X返回"
+
+#: 仓库界面拒绝移动时的提示
+MSG_PARTY_FULL = "队伍已满，请先移出一只"
+MSG_PARTY_MIN = "队伍至少要保留一只"
 
 #: 提示信息持续的帧数（240 帧 @60fps = 4 秒，与 120 帧 @30fps 一致）
 MESSAGE_FRAMES = 240
@@ -114,12 +142,17 @@ class MenuScene(Scene):
         #: 底部提示文字 / 剩余帧数
         self.message: str = ""
         self.message_timer: int = 0
+        #: 仓库界面当前页签（队伍 / 仓库）
+        self.storage_tab: str = TAB_PARTY
 
         #: 三个竖排列表
         self.main_menu = MenuList(MAIN_X, MAIN_Y, [])
         self.party_menu = MenuList(LIST_X, LIST_Y, [])
         self.bag_menu = MenuList(LIST_X, LIST_Y, [])
         self.target_menu = MenuList(LIST_X, LIST_Y, [])
+        #: 仓库界面的两个列表
+        self.storage_party_menu = MenuList(DEPOT_LIST_X, DEPOT_LIST_Y, [])
+        self.storage_box_menu = MenuList(DEPOT_LIST_X, DEPOT_LIST_Y, [])
 
     # ------------------------------------------------------------ 生命周期
     def enter(self, **kwargs) -> None:
@@ -134,6 +167,7 @@ class MenuScene(Scene):
         self.pending_item = None
         self.message = ""
         self.message_timer = 0
+        self.storage_tab = TAB_PARTY
 
     def resume(self) -> None:
         """重新回到前台：状态保留，不重置。"""
@@ -182,6 +216,29 @@ class MenuScene(Scene):
         raw = (f"{index + 1}. {creature.display_name} Lv{creature.level} "
                f"{creature.hp}/{creature.hp_max}")
         return _fit(raw, LEFT_W - LIST_X - 2)
+
+    def depot_party_label(self, index: int, creature=None) -> str:
+        """仓库界面「队伍」页签的一行（和 storage_label 同样的格式）。"""
+        party = self._party()
+        if creature is None:
+            if not (0 <= index < len(party)):
+                return ""
+            creature = party[index]
+        raw = (f"{index + 1}. {creature.display_name} Lv{creature.level} "
+               f"{creature.hp}/{creature.hp_max}")
+        return _fit(raw, DEPOT_LEFT_W - DEPOT_LIST_X - 2)
+
+    def storage_label(self, index: int, creature=None) -> str:
+        """仓库列表的一行（例："1. 小火狮 Lv5 34/34"）。"""
+        storage = self._storage()
+        if creature is None:
+            if not (0 <= index < len(storage)):
+                return ""
+            creature = storage[index]
+        raw = (f"{index + 1}. {creature.display_name} Lv{creature.level} "
+               f"{creature.hp}/{creature.hp_max}")
+        # 和普通队伍列表用同一个宽度上限，行为保持一致
+        return _fit(raw, DEPOT_LEFT_W - DEPOT_LIST_X - 2)
 
     def bag_label(self, index: int, item_id: int | None = None) -> str:
         """背包列表的一行（例："精灵球 x5"）。"""
@@ -247,6 +304,46 @@ class MenuScene(Scene):
             if self.bag_menu.index != before:
                 sound.play_sfx("cursor")
             self.bag_index = self.bag_menu.index
+        elif self.mode == MODE_STORAGE:
+            self._update_storage(inp)
+
+    # ------------------------------------------------------------ 仓库界面
+    def _update_storage(self, inp) -> None:
+        """仓库界面：←→ 切页签，↑↓ 移光标。"""
+        if inp.pressed("left"):
+            self.storage_tab = TAB_PARTY
+            self._clamp_cursors()
+            sound.play_sfx("cursor")
+        elif inp.pressed("right"):
+            self.storage_tab = TAB_STORE
+            self._clamp_cursors()
+            sound.play_sfx("cursor")
+        else:
+            menu = self._storage_menu()
+            if menu.count:
+                before = menu.index
+                if inp.pressed("up"):
+                    menu.move(-1)
+                elif inp.pressed("down"):
+                    menu.move(1)
+                if menu.index != before:
+                    sound.play_sfx("cursor")
+
+    def _storage_menu(self) -> MenuList:
+        """当前页签对应的列表（两个页签各一个 MenuList，光标互不干扰）。"""
+        return (self.storage_party_menu if self.storage_tab == TAB_PARTY
+                else self.storage_box_menu)
+
+    @property
+    def storage_index(self) -> int:
+        """仓库界面**当前页签**的光标位置（只读）。"""
+        return self._storage_menu().index
+
+    def _clamp_cursors(self) -> None:
+        """把两个页签的光标都夹到各自列表范围内。"""
+        for menu, items in ((self.storage_party_menu, self._party()),
+                             (self.storage_box_menu, self._storage())):
+            menu.index = max(0, min(menu.index, max(0, len(items) - 1)))
 
     def _on_cancel(self) -> None:
         """取消键：返回上一级 / 关闭菜单。"""
@@ -264,6 +361,8 @@ class MenuScene(Scene):
         elif self.mode == MODE_TARGET:
             self.pending_item = None
             self.mode = MODE_BAG
+        elif self.mode == MODE_STORAGE:
+            self.mode = MODE_MAIN
 
     def _on_confirm(self) -> None:
         """确认键：按当前模式分发。"""
@@ -276,6 +375,8 @@ class MenuScene(Scene):
             self._confirm_bag()
         elif self.mode == MODE_TARGET:
             self._confirm_target()
+        elif self.mode == MODE_STORAGE:
+            self._confirm_storage()
 
     def _confirm_main(self) -> None:
         """主菜单确认。"""
@@ -285,6 +386,10 @@ class MenuScene(Scene):
             self.party_index = 0
             self.party_menu.index = 0
             self.swap_from = None
+        elif item == "仓库":
+            self.mode = MODE_STORAGE
+            self.storage_tab = TAB_PARTY
+            self._clamp_cursors()
         elif item == "道具":
             self.mode = MODE_BAG
             self.bag_index = 0
@@ -311,6 +416,64 @@ class MenuScene(Scene):
         self.swap_party(self.swap_from, self.party_index)
         self.swap_from = None
         self._say("已交换位置")
+
+    def _confirm_storage(self) -> None:
+        """仓库界面确认：把选中的精灵在队伍与仓库之间搬一下。
+
+        - 「队伍」页签：队伍 -> 仓库（队伍只剩一只时拒绝）；
+        - 「仓库」页签：仓库 -> 队伍（队伍已满 6 只时拒绝）。
+
+        真正的规则在 Player.move_to_storage / Player.move_to_party（数据层），
+        这里只负责调用与提示。
+        """
+        if self.storage_tab == TAB_PARTY:
+            self._move_party_to_storage()
+        else:
+            self._move_storage_to_party()
+
+    def _move_party_to_storage(self) -> bool:
+        """把队伍里选中的那只移进仓库。"""
+        party = self._party()
+        if not party:
+            self._say("队伍里没有精灵")
+            return False
+        index = max(0, min(self.storage_party_menu.index, len(party) - 1))
+        player = self._player()
+        if player is None:
+            self._say("还没有开始游戏")
+            return False
+        if len(party) <= PARTY_MIN:
+            self._say(MSG_PARTY_MIN)
+            return False
+        name = party[index].display_name
+        if not player.move_to_storage(index):
+            self._say(MSG_PARTY_MIN)
+            return False
+        self._say(f"{name} 移到了仓库")
+        self._clamp_cursors()
+        return True
+
+    def _move_storage_to_party(self) -> bool:
+        """把仓库里选中的那只移进队伍。"""
+        storage = self._storage()
+        if not storage:
+            self._say("仓库是空的")
+            return False
+        index = max(0, min(self.storage_box_menu.index, len(storage) - 1))
+        player = self._player()
+        if player is None:
+            self._say("还没有开始游戏")
+            return False
+        if len(player.party) >= PARTY_LIMIT:
+            self._say(MSG_PARTY_FULL)
+            return False
+        name = storage[index].display_name
+        if not player.move_to_party(index):
+            self._say(MSG_PARTY_FULL)
+            return False
+        self._say(f"{name} 移到了队伍")
+        self._clamp_cursors()
+        return True
 
     def swap_party(self, a: int, b: int) -> bool:
         """交换队伍里第 a 只与第 b 只的位置（成功返回 True）。"""
@@ -424,6 +587,7 @@ class MenuScene(Scene):
             for i, name in enumerate(MAIN_ITEMS)
         ]
         party = self._party()
+        storage = self._storage()
         items = [
             {"label": self.party_label(i, c), "x": LIST_X, "y": LIST_Y + i * LIST_STEP}
             for i, c in enumerate(party)
@@ -449,6 +613,19 @@ class MenuScene(Scene):
         self.bag_index = max(0, min(self.bag_index, max(0, len(ids) - 1)))
         self.bag_menu.index = self.bag_index
 
+        # 仓库界面：两个页签各一个列表（队伍 / 仓库）
+        self.storage_party_menu.items = [
+            {"label": self.depot_party_label(i, c),
+             "x": DEPOT_LIST_X, "y": DEPOT_LIST_Y + i * DEPOT_LIST_STEP}
+            for i, c in enumerate(party)
+        ]
+        self.storage_box_menu.items = [
+            {"label": self.storage_label(i, c),
+             "x": DEPOT_LIST_X, "y": DEPOT_LIST_Y + i * DEPOT_LIST_STEP}
+            for i, c in enumerate(storage)
+        ]
+        self._clamp_cursors()
+
     # ------------------------------------------------------------ 绘制
     def draw(self) -> None:
         """绘制整个菜单。"""
@@ -459,6 +636,8 @@ class MenuScene(Scene):
             self._draw_main()
         elif self.mode == MODE_BAG:
             self._draw_bag()
+        elif self.mode == MODE_STORAGE:
+            self._draw_storage()
         else:
             self._draw_party()
         self._draw_message()
@@ -475,6 +654,7 @@ class MenuScene(Scene):
             MODE_PARTY: "精灵",
             MODE_BAG: "道具",
             MODE_TARGET: "选择精灵",
+            MODE_STORAGE: "仓库",
         }
         text.draw(8, HEADER_Y, titles.get(self.mode, "菜单"), palette.YELLOW)
         money = f"金币 {self._dollars()}"
@@ -512,6 +692,9 @@ class MenuScene(Scene):
         if item == "精灵":
             return ["队伍", f"{len(party)} 只", "", "仓库", f"{len(storage)} 只",
                     "", "确认键查看精灵"]
+        if item == "仓库":
+            return ["队伍", f"{len(party)}/{PARTY_LIMIT} 只", "", "仓库",
+                    f"{len(storage)} 只", "", "确认键管理仓库"]
         if item == "道具":
             return ["背包", f"{len(bag)} 种", "", "确认键使用道具"]
         if item == "存档":
@@ -583,10 +766,116 @@ class MenuScene(Scene):
         text.draw(x, RIGHT_Y + 24, f"数量 x{count}", palette.BLACK)
         text.draw_wrapped(x, RIGHT_Y + 46, item.desc, RIGHT_W - PAD * 2, palette.BLACK)
 
+    # ------------------------------------------------------------ 仓库界面
+    def _draw_storage(self) -> None:
+        """仓库界面：页签 + 左侧名单 + 右侧详情。"""
+        self._panel(DEPOT_LEFT_X, DEPOT_LEFT_Y, DEPOT_LEFT_W, DEPOT_LEFT_H)
+        self._panel(DEPOT_RIGHT_X, DEPOT_RIGHT_Y, DEPOT_RIGHT_W, DEPOT_RIGHT_H)
+        self._draw_storage_tabs()
+
+        menu = self._storage_menu()
+        rows = self._storage_rows()
+        if not rows:
+            text.draw(DEPOT_LIST_X, DEPOT_LIST_Y, "（这里是空的）",
+                      palette.DARK_PURPLE)
+        else:
+            cursor = max(0, min(self.storage_index, len(menu.items) - 1))
+            for row, index in enumerate(rows):
+                item = menu.items[index]
+                px = DEPOT_LIST_X
+                py = DEPOT_LIST_Y + row * DEPOT_LIST_STEP
+                color = (palette.BLACK if index == cursor
+                         else palette.DARK_PURPLE)
+                text.draw(px, py, str(item.get("label", "")), color)
+                if index == cursor:
+                    pyxel.tri(px - 9, py + 1, px - 9, py + 11, px - 2, py + 6,
+                              palette.YELLOW)
+        self._draw_storage_detail()
+
+    def _draw_storage_tabs(self) -> None:
+        """页签行：「队伍」和「仓库」，当前页签高亮。"""
+        x = 8
+        for tab, name in ((TAB_PARTY, "队伍"), (TAB_STORE, "仓库")):
+            active = (tab == self.storage_tab)
+            color = palette.YELLOW if active else palette.WHITE
+            text.draw(x, TAB_Y, name, color)
+            if active:
+                # 当前页签下面画一条黄色下划线
+                w = text.width(name)
+                pyxel.rect(x, TAB_Y + 13, w, 1, palette.YELLOW)
+            x += text.width(name) + 16
+        count = len(self._party()) if self.storage_tab == TAB_PARTY else len(self._storage())
+        info = f"{count} 只"
+        text.draw(SCREEN_W - text.width(info) - 8, TAB_Y, info, palette.WHITE)
+
+    def _storage_rows(self) -> list[int]:
+        """当前页签要显示的行（列表下标），超过一屏就滚动。"""
+        total = len(self._storage_items())
+        if total == 0:
+            return []
+        index = max(0, min(self.storage_index, total - 1))
+        top = 0
+        if total > DEPOT_VISIBLE_ROWS:
+            top = max(0, min(index - DEPOT_VISIBLE_ROWS // 2,
+                          total - DEPOT_VISIBLE_ROWS))
+        return list(range(top, min(top + DEPOT_VISIBLE_ROWS, total)))
+
+    def _storage_items(self) -> list:
+        """当前页签的精灵列表（队伍或仓库）。"""
+        return (self._party() if self.storage_tab == TAB_PARTY
+                else self._storage())
+
+    def _draw_storage_detail(self) -> None:
+        """右侧：当前选中的精灵详情（队伍页签看队伍，仓库页签看仓库）。"""
+        if self.storage_tab == TAB_PARTY:
+            creatures = self._party()
+            index = self.storage_party_menu.index
+            empty = "队伍里没有精灵"
+        else:
+            creatures = self._storage()
+            index = self.storage_box_menu.index
+            empty = "仓库是空的"
+        if not creatures:
+            text.draw(DEPOT_RIGHT_X + PAD, DEPOT_RIGHT_Y + 10, empty, palette.DARK_PURPLE)
+            text.draw(DEPOT_RIGHT_X + PAD, DEPOT_RIGHT_Y + 26,
+                      "抓到的精灵会先放在仓库", palette.DARK_PURPLE)
+            return
+        idx = max(0, min(index, len(creatures) - 1))
+        c = creatures[idx]
+        x = DEPOT_RIGHT_X + PAD
+
+        text.draw(x, DEPOT_RIGHT_Y + 6, _fit(c.display_name, 60), palette.BLACK)
+        lv = f"Lv{c.level}"
+        text.draw(DEPOT_RIGHT_X + DEPOT_RIGHT_W - PAD - text.width(lv),
+                  DEPOT_RIGHT_Y + 6, lv, palette.BLACK)
+
+        hp_ratio = (c.hp / c.hp_max) if c.hp_max else 0.0
+        draw_bar(x, DEPOT_RIGHT_Y + 24, 90, 5, hp_ratio, palette.RED,
+                 palette.LIGHT_GREEN)
+        pyxel.text(x, DEPOT_RIGHT_Y + 32, f"{c.hp}/{c.hp_max}", palette.BLACK)
+
+        mp_ratio = (c.mp / c.mp_max) if c.mp_max else 0.0
+        draw_bar(x, DEPOT_RIGHT_Y + 46, 60, 4, mp_ratio, palette.DEEP_BLUE,
+                 palette.LIGHT_BLUE)
+        pyxel.text(x, DEPOT_RIGHT_Y + 52, f"{c.mp}/{c.mp_max}", palette.BLACK)
+
+        text.draw(x, DEPOT_RIGHT_Y + 68, f"攻{c.attack} 防{c.defense} 速{c.speed}",
+                  palette.BLACK)
+
+        action = "Z 移到仓库" if self.storage_tab == TAB_PARTY else "Z 移到队伍"
+        text.draw(x, DEPOT_RIGHT_Y + 88, action, palette.DARK_PURPLE)
+        limit = (f"队伍 {len(self._party())}/{PARTY_LIMIT} 只"
+                 if self.storage_tab == TAB_PARTY
+                 else f"仓库 {len(self._storage())} 只")
+        text.draw(x, DEPOT_RIGHT_Y + 102, limit, palette.DARK_PURPLE)
+
     def _draw_message(self) -> None:
-        """底部提示条。"""
-        if not self.message:
+        """底部提示条。仓库界面没有新消息时显示默认按键提示。"""
+        message = self.message
+        if not message and self.mode == MODE_STORAGE:
+            message = DEPOT_HINT
+        if not message:
             return
         pyxel.rect(0, MSG_Y, SCREEN_W, SCREEN_H - MSG_Y, palette.LIGHT_GRAY)
         pyxel.rectb(0, MSG_Y, SCREEN_W, SCREEN_H - MSG_Y, palette.DARK_PURPLE)
-        text.draw(6, MSG_Y + 7, _fit(self.message, SCREEN_W - 12), palette.BLACK)
+        text.draw(6, MSG_Y + 7, _fit(message, SCREEN_W - 12), palette.BLACK)

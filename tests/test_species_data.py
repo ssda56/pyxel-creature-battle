@@ -18,10 +18,14 @@ from src.data import species_data
 from src.data.species_data import (
     EXP_TABLE,
     MAX_LEVEL,
+    MAX_SKILLS,
+    MIN_LEVEL,
     SPECIES,
     STARTER_IDS,
     STAT_KEYS,
     get_species,
+    learnset_at,
+    learnset_up_to,
     need_exp,
     stat_at,
 )
@@ -235,6 +239,74 @@ class ExpCurveTest(unittest.TestCase):
         self.assertEqual(sum(need_exp(lv) for lv in range(1, 8)), 562)
         self.assertEqual(sum(need_exp(lv) for lv in range(1, 16)), 3078)
         self.assertEqual(sum(need_exp(lv) for lv in range(1, 20)), 5301)
+
+
+class LearnsetUpToTest(unittest.TestCase):
+    """learnset_up_to()：按等级累积、去重、上限 4（《数值设定.md》§3.1）。
+
+    对应《02-新增10只精灵规划.md》§9.4 方案 B：野生精灵应该带上
+    「到该等级为止累计学会的技能」，而不是只有 Lv1 两招。
+    """
+
+    def test_lv1_only_has_initial_skills(self):
+        """Lv1 仍然只有 Lv1 的两招（不能变）。"""
+        for sid in SPECIES:
+            self.assertEqual(learnset_up_to(sid, 1),
+                             learnset_at(sid, 1),
+                             f"种族 {sid} Lv1 技能应等于 Lv1 初始技能")
+
+    def test_phoenix_accumulates_by_level(self):
+        """不死鸟 {1: [4, 25], 8: [6], 16: [7]}：Lv15 三招、Lv16 四招。"""
+        self.assertEqual(learnset_up_to(7, 1), [4, 25])
+        self.assertEqual(learnset_up_to(7, 7), [4, 25])
+        self.assertEqual(learnset_up_to(7, 8), [4, 25, 6])
+        self.assertEqual(learnset_up_to(7, 15), [4, 25, 6])
+        self.assertEqual(learnset_up_to(7, 16), [4, 25, 6, 7])
+        self.assertEqual(learnset_up_to(7, 20), [4, 25, 6, 7])
+
+    def test_every_species_accumulates_monotonically(self):
+        """每只精灵的技能集合随等级只增不减，且是 Lv1 技能的子集扩展。"""
+        for sid, sp in SPECIES.items():
+            previous: list[int] = []
+            for level in range(MIN_LEVEL, MAX_LEVEL + 1):
+                current = learnset_up_to(sid, level)
+                # 单调递增：低等级的招不会被丢掉
+                for skill_id in previous:
+                    self.assertIn(skill_id, current,
+                                  f"种族 {sid} Lv{level} 丢了之前的技能")
+                previous = current
+
+    def test_no_duplicates_and_cap_at_four(self):
+        """任意等级都不超过 4 个技能，且没有重复。"""
+        for sid in SPECIES:
+            for level in range(MIN_LEVEL, MAX_LEVEL + 1):
+                skills = learnset_up_to(sid, level)
+                self.assertLessEqual(len(skills), MAX_SKILLS,
+                                     f"种族 {sid} Lv{level} 技能超过 {MAX_SKILLS} 个")
+                self.assertEqual(len(skills), len(set(skills)),
+                                 f"种族 {sid} Lv{level} 技能有重复：{skills}")
+
+    def test_max_skills_parameter_is_respected(self):
+        """max_skills 可以调小（截断到前 N 个）。"""
+        self.assertEqual(learnset_up_to(7, 20, max_skills=0), [])
+        self.assertEqual(learnset_up_to(7, 20, max_skills=2), [4, 25])
+        self.assertEqual(learnset_up_to(7, 20, max_skills=3), [4, 25, 6])
+
+    def test_level_below_min_is_clamped(self):
+        """等级低于 1 时按 Lv1 计算。"""
+        self.assertEqual(learnset_up_to(7, 0), learnset_up_to(7, 1))
+        self.assertEqual(learnset_up_to(7, -5), learnset_up_to(7, 1))
+
+    def test_unknown_species_raises_keyerror(self):
+        with self.assertRaises(KeyError):
+            learnset_up_to(99, 5)
+
+    def test_order_is_stable_across_calls(self):
+        """同一输入两次调用结果一致（顺序稳定）。"""
+        for sid in SPECIES:
+            for level in (1, 8, 15, 16, 20):
+                self.assertEqual(learnset_up_to(sid, level),
+                                 learnset_up_to(sid, level))
 
 
 if __name__ == "__main__":

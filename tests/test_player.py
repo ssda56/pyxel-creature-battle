@@ -15,7 +15,7 @@ import unittest
 
 from src.data.item_data import INITIAL_BAG, INITIAL_DOLLARS
 from src.model.creature import Creature
-from src.model.player import PARTY_LIMIT, Player
+from src.model.player import PARTY_LIMIT, PARTY_MIN, Player
 
 
 class NewGameTest(unittest.TestCase):
@@ -91,6 +91,139 @@ class PartyTest(unittest.TestCase):
             self.assertEqual(c.hp, c.hp_max)
             self.assertEqual(c.mp, c.mp_max)
             self.assertFalse(c.fainted)
+
+
+class StorageExchangeTest(unittest.TestCase):
+    """队伍 <-> 仓库 互换（README §8.6 缺口）。
+
+    硬规则由数据层保证：
+
+    - 队伍上限 PARTY_LIMIT（6 只）：满了不能再从仓库换进来；
+    - 队伍下限 PARTY_MIN（1 只）：只剩一只时不能再移进仓库；
+    - 仓库无上限。
+    """
+
+    def _player(self, party_size: int = 1, storage_size: int = 0) -> Player:
+        """造一个队伍 party_size 只、仓库 storage_size 只的玩家。"""
+        p = Player.new_game(1)
+        while len(p.party) < party_size:
+            p.party.append(Creature(2, level=5))
+        while len(p.storage) < storage_size:
+            p.storage.append(Creature(3, level=4))
+        return p
+
+    # ---------------------------------------------------- 仓库 -> 队伍
+    def test_move_to_party_when_party_not_full(self):
+        """队伍没满时，仓库 -> 队伍成功，两边数量正确。"""
+        p = self._player(party_size=2, storage_size=3)
+        creature = p.storage[0]
+
+        self.assertTrue(p.move_to_party(0))
+
+        self.assertEqual(len(p.party), 3)
+        self.assertEqual(len(p.storage), 2)
+        self.assertIs(p.party[2], creature)
+        self.assertNotIn(creature, p.storage)
+
+    def test_move_to_party_rejected_when_party_full(self):
+        """队伍满 6 只时，仓库 -> 队伍被拒绝，数量不变。"""
+        p = self._player(party_size=PARTY_LIMIT, storage_size=2)
+        before_party = list(p.party)
+        before_storage = list(p.storage)
+
+        self.assertFalse(p.move_to_party(0))
+        self.assertFalse(p.can_move_to_party(0))
+
+        self.assertEqual(len(p.party), PARTY_LIMIT)
+        self.assertEqual(len(p.storage), 2)
+        self.assertEqual(p.party, before_party)
+        self.assertEqual(p.storage, before_storage)
+
+    def test_move_to_party_rejected_on_bad_index(self):
+        """下标越界一律拒绝。"""
+        p = self._player(party_size=1, storage_size=2)
+        self.assertFalse(p.move_to_party(5))
+        self.assertFalse(p.move_to_party(-1))
+        self.assertEqual(len(p.storage), 2)
+
+    # ---------------------------------------------------- 队伍 -> 仓库
+    def test_move_to_storage_when_party_has_more_than_one(self):
+        """队伍多于 1 只时，队伍 -> 仓库成功。"""
+        p = self._player(party_size=3, storage_size=1)
+        creature = p.party[1]
+
+        self.assertTrue(p.move_to_storage(1))
+
+        self.assertEqual(len(p.party), 2)
+        self.assertEqual(len(p.storage), 2)
+        self.assertIs(p.storage[-1], creature)
+        self.assertNotIn(creature, p.party)
+
+    def test_move_to_storage_rejected_when_only_one_left(self):
+        """队伍只剩 1 只时，队伍 -> 仓库被拒绝，数量不变。"""
+        p = self._player(party_size=1, storage_size=2)
+        before_party = list(p.party)
+        before_storage = list(p.storage)
+
+        self.assertFalse(p.move_to_storage(0))
+        self.assertFalse(p.can_move_to_storage(0))
+
+        self.assertEqual(len(p.party), 1)
+        self.assertEqual(len(p.storage), 2)
+        self.assertEqual(p.party, before_party)
+        self.assertEqual(p.storage, before_storage)
+
+    def test_move_to_storage_rejected_on_bad_index(self):
+        p = self._player(party_size=2, storage_size=0)
+        self.assertFalse(p.move_to_storage(9))
+        self.assertFalse(p.move_to_storage(-1))
+        self.assertEqual(len(p.party), 2)
+
+    # ---------------------------------------------------- 往返
+    def test_round_trip_move_keeps_same_creature(self):
+        """来回搬一次，精灵对象还是同一只。"""
+        p = self._player(party_size=2, storage_size=1)
+        creature = p.storage[0]
+        self.assertTrue(p.move_to_party(0))
+        self.assertIs(p.party[-1], creature)
+        self.assertTrue(p.move_to_storage(len(p.party) - 1))
+        self.assertIs(p.storage[-1], creature)
+        self.assertEqual(len(p.party), 2)
+        self.assertEqual(len(p.storage), 1)
+
+    def test_storage_has_no_upper_limit(self):
+        """仓库无上限：反复搬进搬出都能超过 6 只。"""
+        p = self._player(party_size=1, storage_size=0)
+        for _ in range(12):
+            p.storage.append(Creature(4, level=3))
+        self.assertEqual(len(p.storage), 12)
+        # 队伍满了就搬不动，但仓库照旧无限
+        p.party.append(Creature(2, level=5))
+        self.assertTrue(p.move_to_storage(0))
+        self.assertEqual(len(p.storage), 13)
+
+    # ---------------------------------------------------- 存档往返
+    def test_save_round_trip_after_exchange(self):
+        """搬动之后存档往返，队伍与仓库内容一致。"""
+        p = self._player(party_size=3, storage_size=2)
+        self.assertTrue(p.move_to_party(0))        # 仓库 -> 队伍
+        self.assertTrue(p.move_to_storage(0))      # 队伍 -> 仓库
+
+        restored = Player.from_dict(p.to_dict())
+
+        self.assertEqual(len(restored.party), len(p.party))
+        self.assertEqual(len(restored.storage), len(p.storage))
+        self.assertEqual([c.species_id for c in restored.party],
+                         [c.species_id for c in p.party])
+        self.assertEqual([c.species_id for c in restored.storage],
+                         [c.species_id for c in p.storage])
+        self.assertEqual([c.level for c in restored.storage],
+                         [c.level for c in p.storage])
+        self.assertEqual(restored.to_dict(), p.to_dict())
+
+    def test_party_min_constant(self):
+        self.assertEqual(PARTY_MIN, 1)
+        self.assertEqual(Player.PARTY_MIN, 1)
 
 
 class BagTest(unittest.TestCase):

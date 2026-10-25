@@ -3,6 +3,9 @@
 :class:`Player` 持有：金币、**队伍**（最多 6 只）、**仓库**（无上限）、
 **背包**（道具 -> 数量）。
 
+队伍与仓库之间用 :meth:`Player.move_to_storage` / :meth:`Player.move_to_party`
+互相搬运；**队伍上限 6 只、下限 1 只由本模块（数据层）保证**，界面只是提示。
+
 存档字典结构与《数值设定.md》§11 的顶层字段一致（不含 save_version /
 timestamp / player 位置，那部分由场景层负责）。
 
@@ -16,6 +19,9 @@ from src.model.creature import Creature
 
 #: 队伍上限（《数值设定.md》§8 / §11）
 PARTY_LIMIT: int = 6
+
+#: 队伍下限：至少要保留一只（《数值设定.md》§8）
+PARTY_MIN: int = 1
 
 
 class Player:
@@ -35,6 +41,8 @@ class Player:
 
     #: 队伍上限（《数值设定.md》§8 / §11），与模块级常量一致
     PARTY_LIMIT: int = PARTY_LIMIT
+    #: 队伍下限（至少保留一只），与模块级常量一致
+    PARTY_MIN: int = PARTY_MIN
 
     def __init__(self, dollars: int = INITIAL_DOLLARS, party=None, storage=None, bag=None):
         self.dollars: int = int(dollars)
@@ -60,6 +68,53 @@ class Player:
             return "party"
         self.storage.append(c)
         return "storage"
+
+    # ------------------------------------------------------------ 队伍 <-> 仓库
+    def can_move_to_storage(self, index: int) -> bool:
+        """队伍第 index 只能不能移进仓库。
+
+        规则
+        ----
+        - 队伍**至少要保留 PARTY_MIN 只**（硬规则，数据层保证）；
+        - 下标越界返回 False。
+        """
+        if not (0 <= int(index) < len(self.party)):
+            return False
+        return len(self.party) > self.PARTY_MIN
+
+    def move_to_storage(self, index: int) -> bool:
+        """把队伍第 index 只移进仓库，成功返回 True。
+
+        仓库无上限；队伍只剩一只时**拒绝**（返回 False）。
+        """
+        if not self.can_move_to_storage(index):
+            return False
+        creature = self.party.pop(int(index))
+        self.storage.append(creature)
+        return True
+
+    def can_move_to_party(self, index: int) -> bool:
+        """仓库第 index 只能不能移进队伍。
+
+        规则
+        ----
+        - 队伍最多 PARTY_LIMIT 只（硬规则，数据层保证）；
+        - 下标越界返回 False。
+        """
+        if not (0 <= int(index) < len(self.storage)):
+            return False
+        return len(self.party) < self.PARTY_LIMIT
+
+    def move_to_party(self, index: int) -> bool:
+        """把仓库第 index 只移进队伍，成功返回 True。
+
+        队伍已满时**拒绝**（返回 False）。
+        """
+        if not self.can_move_to_party(index):
+            return False
+        creature = self.storage.pop(int(index))
+        self.party.append(creature)
+        return True
 
     def alive_party(self) -> list[Creature]:
         """队伍中还没倒下的精灵。"""

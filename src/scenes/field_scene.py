@@ -46,6 +46,7 @@ import pyxel
 from src.assets_gen import palette, sprite_base
 from src.assets_gen.sprites import tileset
 from src.data import map_data
+from src.data.species_data import learnset_up_to
 from src.scenes.menu_scene import MenuScene
 from src.scenes.scene_base import Scene
 from src.scenes.shop_scene import ShopScene
@@ -840,7 +841,12 @@ class FieldScene(Scene):
         sound.play_sfx("encounter")
 
         self.battle_target = wanderer
-        enemy = Creature(int(wanderer["species_id"]), int(wanderer["level"]))
+        # 野生精灵带上「到该等级为止累计学会的技能」（§9.4 方案 B）：
+        # Lv8 以上的精灵不再只有 Lv1 两招。
+        species_id = int(wanderer["species_id"])
+        level = int(wanderer["level"])
+        enemy = Creature(species_id, level,
+                         skills=learnset_up_to(species_id, level))
         self.game.scenes.replace(BattleScene(self.game, enemy,
                                   on_end=self._on_battle_end))
 

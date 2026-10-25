@@ -54,6 +54,9 @@ from dataclasses import dataclass, field
 MIN_LEVEL = 1
 MAX_LEVEL = 20
 
+#: 精灵最多同时记住的技能数（《数值设定.md》§3.1：Lv1 两招 + Lv8 + Lv16 = 4）
+MAX_SKILLS = 4
+
 #: 派生属性的键名（顺序即展示顺序：HP / MP / ATK / DEF / SPD）
 STAT_KEYS: tuple[str, ...] = ("HP", "MP", "ATK", "DEF", "SPD")
 
@@ -287,3 +290,36 @@ def stats_at(species_id: int, level: int) -> dict[str, int]:
 def learnset_at(species_id: int, level: int) -> list[int]:
     """取某种族在指定等级学会的技能 ID 列表（没有则返回空列表）。"""
     return list(get_species(species_id).learnset.get(int(level), []))
+
+
+def learnset_up_to(species_id: int, level: int,
+                   max_skills: int = MAX_SKILLS) -> list[int]:
+    """取某种族在指定等级及以前**累计**学会的技能 ID 列表。
+
+    规则（《数值设定.md》§3.1「Lv1 初始 + Lv8 + Lv16，最多 4 个」）：
+
+    - 按学习表的等级顺序累积（Lv1 -> Lv8 -> Lv16）；
+    - **去重**：同一个技能 ID 只保留第一次出现的位置；
+    - **上限** max_skills（默认 MAX_SKILLS = 4），超出部分丢弃；
+    - 顺序稳定：低等级的技能排在前面。
+
+    例（不死鸟 learnset = {1: [4, 25], 8: [6], 16: [7]}）::
+
+        learnset_up_to(7, 1)  -> [4, 25]
+        learnset_up_to(7, 15) -> [4, 25, 6]
+        learnset_up_to(7, 16) -> [4, 25, 6, 7]
+    """
+    sp = get_species(species_id)
+    lv = max(MIN_LEVEL, int(level))
+    out: list[int] = []
+    for learn_lv in sorted(sp.learnset):
+        if learn_lv > lv:
+            break
+        for skill_id in sp.learnset[learn_lv]:
+            if len(out) >= max_skills:
+                return out
+            sid = int(skill_id)
+            if sid in out:
+                continue
+            out.append(sid)
+    return out
