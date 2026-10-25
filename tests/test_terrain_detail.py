@@ -74,8 +74,8 @@ class VariantHashTest(unittest.TestCase):
         self.assertLess(same / (40 * 40), 0.4, "相邻格变体太容易撞在一起")
 
     def test_ground_tiles_have_variants(self):
-        """草地 / 道路 / 洞窟地面 / 岩壁 都要有 3~4 个变体。"""
-        for tile_id in (0, 4, 11, 7):
+        """草地 / 道路 / 水面 都要有 3~4 个变体。"""
+        for tile_id in (0, 4, 3):
             self.assertGreaterEqual(terrain.variant_count(tile_id), 3, tile_id)
             self.assertLessEqual(terrain.variant_count(tile_id), 4, tile_id)
 
@@ -94,6 +94,20 @@ class VariantHashTest(unittest.TestCase):
         from src.assets_gen.sprites import tileset
         for tile_id in (2, 5):
             self.assertNotIn(tile_id, tileset.TILE_VARIANTS)
+
+    # ------------------------------------------------------- 洞窟：明确不要
+    def test_cave_floor_has_no_variants(self):
+        """洞窟地面（11）**刻意没有变体** —— 用户看过实拍后明确要求回退。
+
+        这里是反向断言：以后谁再给洞窟地面加碎屑，这条会立刻红。
+        """
+        self.assertEqual(terrain.variant_count(11), 1)
+        self.assertFalse(terrain.has_variants(11))
+
+    def test_rock_wall_has_no_variants(self):
+        """岩壁（7）同样**刻意没有变体**（洞窟保持原图的干净石头观感）。"""
+        self.assertEqual(terrain.variant_count(7), 1)
+        self.assertFalse(terrain.has_variants(7))
 
 
 class EdgeSignatureTest(unittest.TestCase):
@@ -190,12 +204,26 @@ class EdgeSignatureTest(unittest.TestCase):
         # 统一由「后铺上去的地形」（道路）负责画边。
         self.assertEqual(terrain.edge_signature(0, 3, 2, at), 0)
 
-    def test_cave_floor_edge_against_rock(self):
-        """洞窟地面与岩壁交界要画边（岩壁是障碍，但这里是有意画过渡）。"""
+    def test_cave_floor_has_no_edge_against_rock(self):
+        """洞窟地面与岩壁交界**不画边** —— 用户明确不要洞窟的边缘过渡。
+
+        反向断言：以后谁把 cave 加回白名单，这条会立刻红。
+        """
         tiles = [[11] * 5 for _ in range(5)]
         tiles[1][2] = 7
         at = make_tile_at(tiles, 5, 5)
-        self.assertEqual(terrain.edge_signature(11, 2, 2, at), terrain.EDGE_TOP)
+        self.assertEqual(terrain.edge_signature(11, 2, 2, at), 0)
+        # 四面全换成岩壁也一样不画
+        for (dx, dy) in ((0, -1), (1, 0), (0, 1), (-1, 0)):
+            tiles[2 + dy][2 + dx] = 7
+        self.assertEqual(terrain.edge_signature(11, 2, 2, at), 0)
+
+    def test_cave_is_not_an_edge_family(self):
+        """cave 不该出现在地形族表与白名单里。"""
+        self.assertNotIn("cave", terrain.EDGE_FAMILIES)
+        self.assertIsNone(terrain.edge_family(11))
+        self.assertFalse(terrain.is_edge_material(11))
+        self.assertEqual(terrain.triggers_for(11), frozenset())
 
     def test_non_ground_tiles_never_get_edges(self):
         """树 / 水 / 砖墙 / 传送阵自己不做边缘过渡。"""
@@ -282,6 +310,17 @@ class TerrainSpriteTest(unittest.TestCase):
     def test_generated_sprites_are_16x16(self):
         for sprite in self.tileset.TERRAIN_SPRITES:
             self.assertEqual((sprite.width, sprite.height), (16, 16), sprite.name)
+
+    def test_cave_tiles_are_not_generated(self):
+        """洞窟地面 / 岩壁 不该出现在任何生成表里（否则会覆写原图块）。"""
+        for tile_id in (11, 7):
+            self.assertNotIn(tile_id, self.tileset.TILE_VARIANTS)
+            self.assertNotIn(tile_id, self.tileset.TILE_EDGES)
+        names = {s.name for s in self.tileset.TERRAIN_SPRITES}
+        for prefix in ("tile_11_cavefloor", "tile_7_rock"):
+            self.assertFalse(
+                [n for n in names if n.startswith(prefix)],
+                f"{prefix} 不该有变体 / 过渡图块")
 
     def test_variant_names_are_unique(self):
         names = [s.name for s in self.tileset.TERRAIN_SPRITES]
