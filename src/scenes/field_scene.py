@@ -50,7 +50,7 @@ from src.data.species_data import learnset_up_to
 from src.scenes.menu_scene import MenuScene
 from src.scenes.scene_base import Scene
 from src.scenes.shop_scene import ShopScene
-from src.ui import sound, text
+from src.ui import sound, terrain, text
 from src.ui.transition import Fade
 
 #: 画面尺寸（与 main.py 锁定值一致）
@@ -950,12 +950,38 @@ class FieldScene(Scene):
             raise KeyError(f"没有编号为 {tile_id} 的图块")
         return sprite_base.get(sprite.name)
 
+    def _tile_at(self, gx: int, gy: int) -> int | None:
+        """取格坐标处的图块 ID；越界返回 None（边缘拼接用）。"""
+        w = self.map["w"]
+        h = self.map["h"]
+        if gx < 0 or gy < 0 or gx >= w or gy >= h:
+            return None
+        return self.map["tiles"][gy][gx]
+
+    def _ground_image(self, tile_id: int, gx: int, gy: int) -> pyxel.Image:
+        """可走地面 -> 带碎屑变体 / 边缘过渡的图块图。
+
+        两个细节都只是**画面**，不参与任何可通行性判断：
+        地图数据里的 tiles 一个字节都没变，is_walkable 仍然只看图块 ID。
+        """
+        variant = terrain.variant_index(
+            gx, gy, tile_id, terrain.variant_count(tile_id)
+        )
+        shape = terrain.edge_signature(tile_id, gx, gy, self._tile_at)
+        return tileset.terrain_image(tile_id, variant, shape)
+
     def _draw_map(self) -> None:
-        """画地图图层（只画视口内的格子）。"""
+        """画地图图层（只画视口内的格子）。
+
+        A6 之后每格多了一步「挑图」：按 (gx, gy) 哈希选碎屑变体，
+        再看四邻接挑边缘过渡形态。两者都是纯函数，同一格永远同一张图，
+        截图可复现；代价是每格多两次查表 + 一次哈希，实测远低于帧预算。
+        """
         cam_x, cam_y = self.camera
         m = self.map
         w, h = m["w"], m["h"]
         size = map_data.TILE_SIZE
+        tiles = m["tiles"]
 
         x0 = max(0, cam_x // size)
         x1 = min(w - 1, (cam_x + SCREEN_W) // size)
@@ -963,27 +989,22 @@ class FieldScene(Scene):
         y1 = min(h - 1, (cam_y + SCREEN_H) // size)
 
         for ty in range(y0, y1 + 1):
+            dy = ty * size - cam_y
+            row = tiles[ty]
             for tx in range(x0, x1 + 1):
-                img = self._tile_image(m["tiles"][ty][tx])
                 dx = tx * size - cam_x
-                dy = ty * size - cam_y
-                # 裁掉视口外的部分
-                sx = sy = 0
-                sw = sh = size
-                if dx < 0:
-                    sx = -dx
-                    sw += dx
-                    dx = 0
-                if dy < 0:
-                    sy = -dy
-                    sh += dy
-                    dy = 0
-                if dx + sw > SCREEN_W:
-                    sw = SCREEN_W - dx
-                if dy + sh > SCREEN_H:
-                    sh = SCREEN_H - dy
-                if sw > 0 and sh > 0:
-                    pyxel.blt(dx, dy, img, sx, sy, sw, sh, colkey=0)
+                tile_id = row[tx]
+                if (terrain.has_variants(tile_id)
+                        or terrain.is_edge_material(tile_id)):
+                    img = self._ground_image(tile_id, tx, ty)
+                else:
+                    img = self._tile_image(tile_id)
+                dest = terrain.blit_rect(dx, dy, size, SCREEN_W, SCREEN_H)
+                if dest is None:
+                    continue
+                bdx, bdy, bw, bh = dest
+                sx, sy, _, _ = terrain.blit_source(dx, dy, size)
+                pyxel.blt(bdx, bdy, img, sx, sy, bw, bh, colkey=0)
 
     def _draw_wanderers(self) -> None:
         """画野生精灵（16x16 图标，在玩家**之前**画，玩家在它上面）。"""

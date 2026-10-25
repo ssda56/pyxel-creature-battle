@@ -41,7 +41,7 @@ from src.data import species_data as sd
 from src.model import Creature, Player
 from src.scenes.field_scene import FieldScene
 from src.scenes.scene_base import Scene
-from src.ui import sound, text
+from src.ui import dither, sound, text
 from src.ui.damage_number import DamageNumberGroup
 from src.ui.transition import Fade
 from src.ui.widgets import HpBarAnimator, MenuList, draw_status_box
@@ -149,6 +149,22 @@ SHAKE_PATTERN_Y = (0, 1, 0, -1, 0, 1, 0, -1)
 PARTICLE_COUNT = 5
 PARTICLE_FRAMES = 12
 PARTICLE_FADE = 4
+#: ⑦ 脚下投影：外圈色 3 深绿 / 核心色 5 深紫（两个色阶做过渡）
+SHADOW_SOFT_COLOR = palette.DARK_GREEN
+SHADOW_CORE_COLOR = palette.DARK_PURPLE
+#: ⑦ 脚下投影椭圆：半高（像素）与最小半宽
+#:
+#: 取值是看着截图调的：站台顶端就是精灵的脚，投影如果又小又高，
+#: 就整个压在站台的深绿边上看不见（深绿叠深绿 = 没变化）。
+#: 所以投影要**够宽、够低**，一部分漫到站台的绿色内圈上才读得出来。
+FOOT_SHADOW_RY = 5
+FOOT_SHADOW_MIN_RX = 6
+#: ⑦ 脚下投影相对精灵脚的额外偏移（光源在左上 -> 影子偏向右下）
+SHADOW_OFFSET_X = 2
+SHADOW_OFFSET_Y = 3
+#: ⑦ 投影半宽 = 脚宽 // 2 + 这个值
+SHADOW_RX_EXTRA = 6
+
 #: ⑤ 粒子飞散方向（**固定表，不用随机数**）
 #: 战斗的随机源是注入的 seeded RNG，粒子去抽它会改变伤害骰子的结果，
 #: 所以这里用写死的方向表，保证战斗可复现。
@@ -328,6 +344,12 @@ class BattleScene(Scene):
         self._hp_anim = HpBarAnimator()
         #: 血条缓动对应的「我方出战精灵」（换人时重置显示值）
         self._hp_owner = None
+        #: ⑦ 暗化后的精灵图缓存：species_id -> pyxel.Image
+        self._shade_cache: dict[int, pyxel.Image] = {}
+        #: ⑦ 落脚点缓存：species_id -> (中心 x, 地面行 y, 脚宽)
+        self._foot_cache: dict[int, tuple[int, int, int]] = {}
+        #: ⑦ 脚下投影小图缓存：species_id -> pyxel.Image
+        self._shadow_cache: dict[int, pyxel.Image] = {}
 
         #: 本回合双方是否已经行动过（决定行动顺序与回合结束）
         self._enemy_acted = False
@@ -402,6 +424,11 @@ class BattleScene(Scene):
     def draw(self) -> None:
         """画整个战斗画面。"""
         self._draw_background()
+        # ⑦ 脚下投影先画（影子在精灵**下面**）
+        self._draw_foot_shadow(self.enemy, ENEMY_SPRITE_X, ENEMY_SPRITE_Y,
+                               "enemy")
+        self._draw_foot_shadow(self.active, PLAYER_SPRITE_X, PLAYER_SPRITE_Y,
+                               "player")
         self._draw_creature(self.enemy, ENEMY_SPRITE_X, ENEMY_SPRITE_Y, "enemy")
         self._draw_creature(self.active, PLAYER_SPRITE_X, PLAYER_SPRITE_Y,
                             "player")
@@ -1130,6 +1157,87 @@ class BattleScene(Scene):
         pyxel.elli(10 + px, 113 + py, 60, 18, palette.DARK_GREEN)
         pyxel.elli(14 + px, 118 + py, 52, 12, palette.GREEN)
 
+    def _shaded_sprite(self, species_id: int) -> pyxel.Image | None:
+        """取（并缓存）右下侧暗化后的战斗图。
+
+        **原图不动**：`sprite_base` 里烘焙好的图是全局共享的，
+        这里另烘一张暗化版缓存起来。
+        """
+        cached = self._shade_cache.get(int(species_id))
+        if cached is not None:
+            return cached
+        try:
+            img = sprite_base.get(f"creature_{int(species_id)}_battle")
+        except KeyError:
+            return None
+        shaded = dither.shade_lower_right(img)
+        self._shade_cache[int(species_id)] = shaded
+        return shaded
+
+    def _footprint(self, species_id: int) -> tuple[int, int, int] | None:
+        """精灵的落脚点（中心 x, 地面行 y, 脚宽），带缓存。"""
+        key = int(species_id)
+        cached = self._foot_cache.get(key)
+        if cached is not None:
+            return cached
+        try:
+            img = sprite_base.get(f"creature_{key}_battle")
+        except KeyError:
+            return None
+        info = dither.footprint(img)
+        if info is None:
+            return None
+        self._foot_cache[key] = info
+        return info
+
+    def _shadow_sprite(self, species_id: int) -> pyxel.Image | None:
+        """烘焙并缓存脚下投影小图（每帧只要一次 blt）。
+
+        烘焙而不是每帧逐像素画：一个 30x12 的抖动椭圆要 360 次
+        pset 调用，每帧都画就是每帧 ~0.3ms；烘成小图后快一个数量级。
+        """
+        key = int(species_id)
+        cached = self._shadow_cache.get(key)
+        if cached is not None:
+            return cached
+        info = self._footprint(key)
+        if info is None:
+            return None
+        _cx_rel, _ground_rel, width = info
+        rx = max(FOOT_SHADOW_MIN_RX, width // 2 + SHADOW_RX_EXTRA)
+        img = dither.bake_dither_ellipse([
+            (rx, FOOT_SHADOW_RY, SHADOW_SOFT_COLOR, 0.9),
+            (int(rx * 0.55), int(FOOT_SHADOW_RY * 0.6), SHADOW_CORE_COLOR, 0.9),
+        ])
+        self._shadow_cache[key] = img
+        return img
+
+    def _draw_foot_shadow(self, creature: Creature, x: int, y: int,
+                          side: str) -> None:
+        """⑦ 脚下投影：密度向外衰减的抖动椭圆。
+
+        - 外圈用色 3（深绿）、核心用色 5（深紫），两个色阶做出过渡；
+        - 位置跟着**站台偏移**走（入场滑入 / 震屏），但**不含受击位移**
+          —— 受击时精灵自己往后一顿，影子留在原地；
+        - 用 dither.footprint 算出精灵真正的脚在哪，
+          这样 18 只精灵的影子都落在自己脚下（不会按到尾巴尖上）。
+        """
+        if creature is None or creature.fainted:
+            return
+        info = self._footprint(creature.species_id)
+        if info is None:
+            return
+        img = self._shadow_sprite(creature.species_id)
+        if img is None:
+            return
+        cx_rel, ground_rel, _width = info
+        ox, oy = self.platform_offset(side)
+        cx = x + ox + cx_rel + SHADOW_OFFSET_X
+        cy = y + oy + ground_rel + SHADOW_OFFSET_Y
+        # 小图的圆心在图的正中间
+        pyxel.blt(cx - img.width // 2, cy - img.height // 2, img,
+                  0, 0, img.width, img.height, colkey=0)
+
     def _draw_creature(self, creature: Creature, x: int, y: int,
                        side: str | None = None) -> None:
         """画一只精灵的 32x32 战斗图（倒下的不画）。
@@ -1139,6 +1247,8 @@ class BattleScene(Scene):
         - ① 入场动画；
         - ② 受击闪烁 / 抖动 / 后移；
         - ④ 震屏。
+
+        画的是**右下侧暗化过**的版本（⑦），原图在 `sprite_base` 里不动。
         """
         if creature is None or creature.fainted:
             return
@@ -1146,9 +1256,8 @@ class BattleScene(Scene):
             side = "enemy" if int(x) == ENEMY_SPRITE_X else "player"
         if self._hit_blink(side):
             return                       # ② 受击闪烁：这一帧不画精灵
-        try:
-            img = sprite_base.get(f"creature_{creature.species_id}_battle")
-        except KeyError:
+        img = self._shaded_sprite(creature.species_id)
+        if img is None:
             return
         dx, dy = self.creature_offset(side)
         sx, sy = self.shake_offset()

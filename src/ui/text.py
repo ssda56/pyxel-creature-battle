@@ -202,6 +202,27 @@ def fallback_font() -> pyxel.Font | None:
 
 
 
+def warm_up() -> None:
+    """预先付清字体相关的懒初始化开销。
+
+    为什么需要：`pyxel.Font()` 的构造很贵——内置点阵字体约 60ms，系统黑体
+    200~400ms（实测）。缺字回退用的是系统字体，如果不预热，这笔开销会落在
+    **第一帧真正画中文的那一刻**，玩家看到的就是「窗口出现了，画面卡住半秒」。
+
+    这里在进入主循环前把主字体、cmap 表、回退字体全部构造好，并把两套字体
+    各光栅化一次。之后每帧的文字绘制只剩查表。
+    """
+    init_font()
+    covered_codepoints()
+    fallback = fallback_font()
+    probe = "精灵对战伤药然"        # 含缺字，确保回退字体也被光栅化
+    pyxel.cls(0)
+    pyxel.text(0, 0, probe, 0, init_font())   # 色 0 = 黑，画完立刻清屏，肉眼不可见
+    if fallback is not None:
+        pyxel.text(0, 0, probe, 0, fallback)
+    pyxel.cls(0)
+
+
 def width(s: str) -> int:
     """测量字符串像素宽度。全角 12px、半角 6px。"""
     return init_font().text_width(s)

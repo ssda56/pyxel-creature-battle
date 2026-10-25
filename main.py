@@ -106,6 +106,9 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # 4) 正常跑游戏
+    # 预热字体：把 pyxel.Font 的构造与光栅化开销挪到这里，
+    # 否则会落在第一帧真正画中文的那一刻，表现为「窗口出现后卡半秒」。
+    text.warm_up()
     pyxel.run(game.update, game.draw)
 
 
