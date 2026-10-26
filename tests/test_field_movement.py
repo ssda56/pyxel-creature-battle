@@ -142,5 +142,46 @@ class StateSyncTest(unittest.TestCase):
         self.assertEqual(game.player_state["dollars"], 300)
 
 
+class StackedKeyTest(unittest.TestCase):
+    """方向键叠键：松开叠加上去的键后，前一个键立刻接管（A8 回归）。
+
+    用户报告：按着 A 往左走，第二步按 W 往上走，全程不松开 A；
+    松开 W 之后人却完全站住，必须重新按一下方向键才动。
+    """
+
+    #: 帧 0~9 只按 left；10~14 叠加 up；15 起只按 left（up 被松开）
+    SCRIPT = [{"left": 10}, {"left": 10, "up": 5}, {"left": 60}]
+
+    def test_release_stacked_key_resumes_previous_direction(self):
+        """松开 up 的那一帧，_read_direction 立刻返回 left。"""
+        game, scene = field_helpers.make_field(
+            map_id=1, script=self.SCRIPT, x=15, y=10)
+        inp = game.input
+
+        trace = []
+        for _ in range(20):
+            trace.append(scene._read_direction(inp))
+            inp.update()
+
+        self.assertEqual(trace[10], "up", "第 10 帧应该切到 up")
+        self.assertEqual(trace[14], "up")
+        self.assertEqual(trace[15], "left",
+                         "松开 up 之后必须立刻回到 left，不能站住")
+        self.assertEqual(scene.facing, "left", "朝向也要立刻切回 left")
+
+    def test_player_keeps_walking_after_releasing_stacked_key(self):
+        """集成：松开 up 之后玩家继续走，不会彻底站死。"""
+        game, scene = field_helpers.make_field(
+            map_id=1, script=self.SCRIPT, x=15, y=10)
+
+        for _ in range(60):
+            game.update()
+            self.assertTrue(scene.moving,
+                            "全程按着 left，玩家不该在任何一帧停住")
+
+        self.assertLess(scene.gx, 15, "应该一直在往左走")
+        self.assertEqual(scene.facing, "left")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -385,13 +385,38 @@ class FieldScene(Scene):
             return
 
     def _read_direction(self, inp) -> str | None:
-        """读方向：优先用本帧刚按下的方向，否则用当前朝向。"""
+        """读方向：扫**所有**按住的方向键，不只认当前朝向那一个。
+
+        优先级
+        ------
+        1. **本帧刚按下的方向**（pressed）—— 响应最快，最高优先；
+        2. **当前朝向仍然按着**（held(self.facing)）—— 保持连贯，不来回抖；
+        3. **其它任何按住的方向**（按 DIR_ORDER 顺序）——
+           这是「叠键」的修复点：按着 A 往左走时叠加按 W 往上走，
+           松开 W 之后 A 还按着，必须**立刻**回到 A，
+           而不是站住不动、等人重新按一次；
+        4. 都没按 -> None（真的没按任何方向键）。
+
+        为什么第 3 步不能省
+        ------------------
+        原来只查 held(self.facing)：按着 A（facing=left）-> 叠加按 W
+        （facing=up）-> 松开 W，held("up") 变假就直接返回 None，
+        于是 A 明明还按着，人却完全站住了。
+        """
+        # 1) 本帧刚按下的方向 —— 最高优先
         for d in DIR_ORDER:
             if inp.pressed(d):
                 self.facing = d
                 return d
+        # 2) 当前朝向还按着 —— 保持连贯，不来回抖
         if inp.held(self.facing):
             return self.facing
+        # 3) 别的方向还按着 —— 叠键松开后立刻接上前一个键
+        for d in DIR_ORDER:
+            if inp.held(d):
+                self.facing = d
+                return d
+        # 4) 什么都没按
         return None
 
     def _start_move(self, direction: str) -> None:
